@@ -1,9 +1,5 @@
 import { useState } from 'react';
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Calendar } from "./ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Input, Button, Calendar, Popover, PopoverContent, PopoverTrigger, Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from './ui'
 import { CalendarIcon, MapPinIcon, CameraIcon, PlayCircleIcon, FolderOpenIcon, MenuIcon, XIcon } from 'lucide-react';
 import { format } from "date-fns";
 
