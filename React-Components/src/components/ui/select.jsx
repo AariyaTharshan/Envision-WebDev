@@ -1,4 +1,3 @@
-import React from 'react'
 
 export function Select({ children }) {
   return <select className="border rounded px-2 py-1">{children}</select>

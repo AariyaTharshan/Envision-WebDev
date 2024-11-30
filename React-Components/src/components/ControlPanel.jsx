@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { CalendarIcon, MapPinIcon, CameraIcon, PlayCircleIcon, FolderOpenIcon, MenuIcon, XIcon } from 'lucide-react';
 import { format } from "date-fns";
 
-function ControlPanel() {
+const ControlPanel = ()=> {
   const [fromDate, setFromDate] = useState();
   const [toDate, setToDate] = useState();
   const [isVisible, setIsVisible] = useState(true);  // State to toggle visibility

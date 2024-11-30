@@ -1,4 +1,3 @@
-import React from 'react'
 
 export function Calendar({ selected, onSelect }) {
   // This is a simplified calendar component

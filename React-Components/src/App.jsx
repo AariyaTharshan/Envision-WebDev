@@ -1,7 +1,5 @@
-import React from 'react'
-import Navbar from './components/Navbar'
+import { ControlPanel,Navbar } from './components'
 import './App.css'
-import ControlPanel from './components/ControlPanel'
 
 const App = () => {
   return (
