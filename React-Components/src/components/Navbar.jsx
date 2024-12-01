@@ -10,7 +10,7 @@ const menuItems = [
   },
   {
     title: 'Settings',
-    items: ['Preferences', 'User Profile', 'Themes'],
+    items: ['Camera Configuration'],
   },
   {
     title: 'Image',

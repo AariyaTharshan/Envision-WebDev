@@ -6,6 +6,7 @@ const App = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <ControlPanel/>
+      {/* <cam></cam> */}
     </div>
   )
 }
