@@ -25,9 +25,9 @@ const ControlPanel = ()=> {
       >
         {/* Conditionally render hamburger or X icon */}
         {isOpen ? (
-          <XIcon className="h-6 w-6 text-black" />
-        ) : (
           <MenuIcon className="h-6 w-6 text-black" />
+        ) : (
+          <XIcon className="h-6 w-6 text-black" />
         )}
         <span className="sr-only">Toggle Control Panel</span>
       </Button>
