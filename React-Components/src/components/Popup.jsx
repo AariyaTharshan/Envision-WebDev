@@ -25,21 +25,27 @@ const PopupModal = () => {
               <label className="block text-sm font-medium mb-1">
                 Camera Window Width
               </label>
-              <input
-                type="text"
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                placeholder="Width in cm"
-              />
+              <div className="flex items-center">
+                <input
+                  type="text"
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  placeholder="Width"
+                />
+                <span className="ml-2 text-gray-500">cm</span>
+              </div>
             </div>
             <div className="mb-4">
               <label className="block text-sm font-medium mb-1">
                 Camera Window Height
               </label>
-              <input
-                type="text"
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                placeholder="Height in cm"
-              />
+              <div className="flex items-center">
+                <input
+                  type="text"
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  placeholder="Height"
+                />
+                <span className="ml-2 text-gray-500">cm</span>
+              </div>
             </div>
             <div className="mb-4">
               <label className="block text-sm font-medium mb-1">Preview</label>
@@ -49,11 +55,12 @@ const PopupModal = () => {
             </div>
             <div className="mb-4">
               <label className="block text-sm font-medium mb-1">Camera Type</label>
-              <input
-                type="text"
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                placeholder="Type"
-              />
+              <select className="w-full border border-gray-300 rounded px-3 py-2">
+                <option>MD50 Mshot 5.0 MP Camera</option>
+                <option>IDS 6.4Mp-U3-3880CP-C-HQ REV 2.2USB</option>
+                <option>HIKROBOT 6MP Rolling Shutter USB</option>
+                <option>MD50 IDS6.4 HIKROBOT</option>
+              </select>
             </div>
             <div className="flex justify-end space-x-4">
               <button
