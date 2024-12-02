@@ -5,20 +5,20 @@ export const CameraContext = createContext();
 export const CameraProvider = ({ children }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [importedImage, setImportedImage] = useState(null);
-  const [capturedImage, setCapturedImage] = useState(null); // New state for captured image
+  const [capturedImage, setCapturedImage] = useState(null); // Captured image state
 
   const startRecording = () => setIsRecording(true);
   const stopRecording = () => setIsRecording(false);
 
   const captureImage = () => {
     console.log("Capture Image triggered from Context");
-    // We will update the captured image in the context when the "Snap" button is clicked
-    setCapturedImage(null); // Reset previous captured image
+    // Capture image logic will be triggered from Canvas component
+    setCapturedImage(null); // Reset previous captured image to ensure it's fresh
   };
 
   const importImage = (image) => {
-    setImportedImage(image);
-    console.log("Imported Image:", image);
+    console.log("Imported Image in Context:", image);
+    setImportedImage(image); // Set imported image in context
   };
 
   return (
@@ -29,9 +29,9 @@ export const CameraProvider = ({ children }) => {
         stopRecording,
         captureImage,
         importImage,
-        capturedImage,  // Provide captured image to context
-        setCapturedImage, // Provide method to set captured image
-        importedImage,
+        capturedImage, // Provide captured image
+        setCapturedImage, // Expose method to directly set captured image
+        importedImage, // Expose imported image
       }}
     >
       {children}
