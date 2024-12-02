@@ -6,8 +6,8 @@ import { format } from "date-fns";
 const ControlPanel = ()=> {
   const [fromDate, setFromDate] = useState();
   const [toDate, setToDate] = useState();
-  const [isVisible, setIsVisible] = useState(true);  // State to toggle visibility
-  const [isOpen, setIsOpen] = useState(false); // State to toggle button (hamburger to X)
+  const [isVisible, setIsVisible] = useState(false);  // State to toggle visibility
+  const [isOpen, setIsOpen] = useState(true); // State to toggle button (hamburger to X)
 
   const handleToggle = () => {
     setIsOpen(prev => !prev);  // Toggle hamburger-X state

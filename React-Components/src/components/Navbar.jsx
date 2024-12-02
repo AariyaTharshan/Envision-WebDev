@@ -45,7 +45,7 @@ function Navbar() {
     <header className="navbar-header">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center">
+          <div className="flex justify-between w-10/12 items-center">
             {/* Logo */}
             <h1 className="text-2xl font-bold text-primary mr-8">Envision</h1>
 
