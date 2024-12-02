@@ -32,7 +32,7 @@ const ControlPanel = () => {
     importImage,
   } = useContext(CameraContext);
 
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [fromDate, setFromDate] = useState(null); // State for "from" date
   const [toDate, setToDate] = useState(null); // State for "to" date
