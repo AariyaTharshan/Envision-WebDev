@@ -1,15 +1,12 @@
-import { ControlPanel, Navbar } from './components'
-import './App.css'
+import { CameraProvider } from "./components/CameraContext";
+import { ControlPanel, Navbar,Canvas } from './components'
 
+const App = () => (
+  <CameraProvider>
+    <Navbar/>
+    <ControlPanel />
+    <Canvas />
+  </CameraProvider>
+);
 
-const App = () => {
-  return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <ControlPanel/>
-      
-    </div>
-  )
-}
-
-export default App
+export default App;

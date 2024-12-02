@@ -1,5 +1,7 @@
-import Cam from './cam'
 import ControlPanel from './ControlPanel'
 import Navbar from './Navbar'
+import Canvas from './Canvas'
 
-export { ControlPanel, Navbar, Cam }
+
+export { ControlPanel, Navbar,Canvas }
+

@@ -1,52 +1,107 @@
-import { useState } from 'react';
-import { Input, Button, Calendar, Popover, PopoverContent, PopoverTrigger, Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from './ui'
-import { CalendarIcon, MapPinIcon, CameraIcon, PlayCircleIcon, FolderOpenIcon, MenuIcon, XIcon } from 'lucide-react';
+import React, { useContext, useState } from "react";
+import { CameraContext } from "./CameraContext";
+import {
+  Input,
+  Button,
+  Calendar,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Select,
+  SelectContent,
+  SelectTrigger,
+  SelectValue,
+  SelectItem,
+} from "./ui";
+import {
+  CalendarIcon,
+  MapPinIcon,
+  CameraIcon,
+  PlayCircleIcon,
+  FolderOpenIcon,
+  MenuIcon,
+  XIcon,
+} from "lucide-react";
 import { format } from "date-fns";
 
-const ControlPanel = ()=> {
-  const [fromDate, setFromDate] = useState();
-  const [toDate, setToDate] = useState();
-  const [isVisible, setIsVisible] = useState(false);  // State to toggle visibility
-  const [isOpen, setIsOpen] = useState(true); // State to toggle button (hamburger to X)
+const ControlPanel = () => {
+  const {
+    startRecording,
+    stopRecording,
+    captureImage,
+    importImage,
+  } = useContext(CameraContext);
+
+  const [isVisible, setIsVisible] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  const [fromDate, setFromDate] = useState(null); // State for "from" date
+  const [toDate, setToDate] = useState(null); // State for "to" date
 
   const handleToggle = () => {
-    setIsOpen(prev => !prev);  // Toggle hamburger-X state
-    setIsVisible(prev => !prev); // Toggle control panel visibility
+    setIsOpen((prev) => !prev);
+    setIsVisible((prev) => !prev);
+  };
+
+  const handleSnap = () => {
+    captureImage(); // Capture the image
+    stopRecording(); // Stop recording the video
+
+    // Trigger the download automatically
+    const canvas = document.getElementById("canvas");
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/png");
+    link.download = "captured-image.png"; // Automatically download the image
+    link.click(); // Trigger the download
+  };
+
+  const handleImport = async () => {
+    try {
+      const [fileHandle] = await window.showOpenFilePicker({
+        types: [
+          {
+            description: "Images",
+            accept: { "image/*": [".png", ".jpg", ".jpeg"] },
+          },
+        ],
+        multiple: false,
+      });
+
+      const file = await fileHandle.getFile();
+      const image = URL.createObjectURL(file);
+      importImage(image);
+    } catch (error) {
+      console.error("Error importing file:", error);
+    }
   };
 
   return (
     <div className="relative">
       {/* Toggle Button */}
-      <Button 
-        size="icon" 
-        variant="outline" 
+      <Button
+        size="icon"
+        variant="outline"
         className="fixed bottom-4 left-4 z-20 p-2 bg-white shadow-lg rounded-full"
-        onClick={handleToggle}  // Toggle visibility and button state
+        onClick={handleToggle}
       >
-        {/* Conditionally render hamburger or X icon */}
-        {isOpen ? (
-          <MenuIcon className="h-6 w-6 text-black" />
-        ) : (
-          <XIcon className="h-6 w-6 text-black" />
-        )}
+        {isOpen ? <XIcon className="h-6 w-6 text-black" /> : <MenuIcon className="h-6 w-6 text-black" />}
         <span className="sr-only">Toggle Control Panel</span>
       </Button>
 
       {/* Control Panel */}
       {isVisible && (
-        <div className="fixed bottom-16 left-4 w-full sm:w-[60%] max-w-lg bg-background border rounded-lg shadow-lg p-3 space-y-4 z-10">
+        <div className="fixed bottom-16 left-4 w-full sm:w-[60%] max-w-lg bg-background  border rounded-lg shadow-lg p-3 space-y-4 z-10">
           <div className="flex space-x-2">
-            <Button size="icon" variant="outline">
+            <Button size="icon" variant="outline" onClick={startRecording}>
               <PlayCircleIcon className="h-4 w-4" />
               <span className="sr-only">Record</span>
             </Button>
-            <Button size="icon" variant="outline">
+            <Button size="icon" variant="outline" onClick={handleSnap}>
               <CameraIcon className="h-4 w-4" />
               <span className="sr-only">Snap</span>
             </Button>
-            <Button size="icon" variant="outline">
+            <Button size="icon" variant="outline" onClick={handleImport}>
               <FolderOpenIcon className="h-4 w-4" />
-              <span className="sr-only">Open</span>
+              <span className="sr-only">Import</span>
             </Button>
           </div>
 
@@ -129,6 +184,6 @@ const ControlPanel = ()=> {
       )}
     </div>
   );
-}
+};
 
 export default ControlPanel;
