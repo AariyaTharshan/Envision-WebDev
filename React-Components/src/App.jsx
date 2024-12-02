@@ -1,4 +1,3 @@
-import React from "react";
 import { CameraProvider } from "./components/CameraContext";
 import { ControlPanel, Navbar,Canvas } from './components'
 

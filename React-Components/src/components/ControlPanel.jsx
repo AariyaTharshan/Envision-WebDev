@@ -89,7 +89,7 @@ const ControlPanel = () => {
 
       {/* Control Panel */}
       {isVisible && (
-        <div className="fixed bottom-16 left-4 w-full sm:w-[60%] max-w-lg bg-background border rounded-lg shadow-lg p-3 space-y-4 z-10">
+        <div className="fixed bottom-16 left-4 w-full sm:w-[60%] max-w-lg bg-background  border rounded-lg shadow-lg p-3 space-y-4 z-10">
           <div className="flex space-x-2">
             <Button size="icon" variant="outline" onClick={startRecording}>
               <PlayCircleIcon className="h-4 w-4" />
