@@ -127,6 +127,28 @@ const PerformanceForm = ({ formData, handleInputChange }) => {
             />
             Global
           </label>
+          <label className="flex items-center">
+            <input
+              type="radio"
+              name="thresholdingType"
+              value="Binary"
+              checked={formData.thresholdingType === "binary"}
+              onChange={(e) => handleInputChange(e, "performance")}
+              className="mr-2"
+            />
+            Binary
+          </label>
+          <label className="flex items-center">
+            <input
+              type="radio"
+              name="thresholdingType"
+              value="Adaptive"
+              checked={formData.thresholdingType === "adaptive"}
+              onChange={(e) => handleInputChange(e, "performance")}
+              className="mr-2"
+            />
+            Adaptive
+          </label>
         </div>
       </div>
 

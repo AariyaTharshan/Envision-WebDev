@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import GeneralForm from "./GeneralForm";
-import PerformanceForm from "./PerformanceForm"; // Ensure it's imported
+import PerformanceForm from "./PerformanceForm";
+import Flake1 from './Flakeconfiguration' // Ensure it's imported
 
 const SystemConfig = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState("General");
@@ -76,6 +77,14 @@ const SystemConfig = ({ onClose }) => {
           >
             Performance
           </button>
+          <button
+            className={`px-6 py-2 font-medium text-lg ${
+              activeTab === "Flake1" ? "text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
+            }`}
+            onClick={() => handleTabChange("Flake1")}
+          >
+            Flake Configuration
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -84,6 +93,9 @@ const SystemConfig = ({ onClose }) => {
         )}
         {activeTab === "Performance" && (
           <PerformanceForm formData={formData.performance} handleInputChange={handleInputChange} />
+        )}
+        {activeTab == "Flake1" &&(
+          <Flake1 formData={formData.flake} handleInputChange={handleInputChange} />
         )}
 
         {/* Footer Buttons */}

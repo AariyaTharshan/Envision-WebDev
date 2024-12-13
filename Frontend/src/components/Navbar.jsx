@@ -1,8 +1,12 @@
 import React, { useState } from "react";
 import SystemConfig from "./SystemConfig"; // Import the SystemConfig component
+import CameraCalibrate from "./CameraCalibrate"; // Import the CameraCalibrate component
+import CameraConfiguration from './CameraConfiguration';
 
 const Navbar = () => {
-  const [showConfig, setShowConfig] = useState(false); // State to manage modal visibility
+  const [showSystemConfig, setShowSystemConfig] = useState(false); // State for SystemConfig modal visibility
+  const [showCalibrate, setShowCalibrate] = useState(false); // State for CameraCalibrate modal visibility
+  const [showCameraConf, setShowCameraConf ] = useState(false) //State for Camera Configuration modal visibility
   const [dropdownOpen, setDropdownOpen] = useState(null); // State to manage dropdown visibility
 
   // Function to toggle dropdown
@@ -10,10 +14,15 @@ const Navbar = () => {
     setDropdownOpen(dropdownOpen === menu ? null : menu);
   };
 
-  // Function to handle option click (open System Config modal)
+  // Function to handle option click (open the respective modal)
   const handleOptionClick = (option) => {
     if (option === "System Configuration") {
-      setShowConfig(true); // Show System Configuration modal
+      setShowSystemConfig(true); // Show System Configuration modal
+    } else if (option === "Calibrate") {
+      setShowCalibrate(true); // Show CameraCalibrate modal
+    }
+    else if (option === "Camera Configuration"){
+      setShowCameraConf(true);
     } else {
       console.log(`Option clicked: ${option}`);
     }
@@ -67,8 +76,18 @@ const Navbar = () => {
       </div>
 
       {/* Show the System Configuration Modal when triggered */}
-      {showConfig && (
-        <SystemConfig onClose={() => setShowConfig(false)} /> // Pass the close function to the modal
+      {showSystemConfig && (
+        <SystemConfig onClose={() => setShowSystemConfig(false)} /> // Pass the close function to SystemConfig
+      )}
+
+      {/* Show the Camera Calibration Modal when triggered */}
+      {showCalibrate && (
+        <CameraCalibrate onClose={() => setShowCalibrate(false)} /> // Pass the close function to CameraCalibrate
+      )}
+
+      {/* Show Camera Configuration Model when triggered */}
+      {showCameraConf && (
+        <CameraConfiguration onClose={()=> setShowCameraConf(false) } />
       )}
     </nav>
   );

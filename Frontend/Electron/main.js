@@ -15,11 +15,7 @@ function createMainWindow() {
     mainWindow.setMenu(null);
 
     // Load your app (development or production)
-    mainWindow.loadURL(
-        process.env.NODE_ENV === 'development'
-            ? 'http://localhost:5173'
-            : `file://${path.join(__dirname, '../dist/index.html')}`
-    );
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html')); // Fixed this line
 
     // Suppress DevTools console warnings (optional)
     mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {

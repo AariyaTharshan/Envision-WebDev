@@ -8,7 +8,9 @@
     "start": "vite",
     "build": "vite build",
     "electron-dev": "cross-env NODE_ENV=development electron .",
-    "electron-build": "vite build && cross-env NODE_ENV=production electron ."
+    "electron-build": "vite build && cross-env NODE_ENV=production electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
   },
   "dependencies": {
     "@radix-ui/react-popover": "^1.1.2",
@@ -32,6 +34,7 @@
     "autoprefixer": "^10.4.20",
     "cross-env": "^7.0.3",
     "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
     "eslint": "^9.15.0",
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^5.0.0",
@@ -40,5 +43,22 @@
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "vite": "^6.0.1"
+  },
+  "build": {
+    "appId": "com.yourname.yourapp",
+    "productName": "YourAppName",
+    "files": [
+      "dist/**/*",
+      "src/**/*",
+      "electron/main.js",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis", 
+        "portable"
+      ]
+    }
   }
 }
