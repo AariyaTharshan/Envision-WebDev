@@ -6,22 +6,18 @@ function createMainWindow() {
         width: 800,
         height: 600,
         webPreferences: {
+            contextIsolation: true,
             nodeIntegration: false,
         },
-        autoHideMenuBar: true, // Prevents the menu from appearing when Alt is pressed
+        autoHideMenuBar: true,
     });
 
-    // Remove the default menu bar
-    mainWindow.setMenu(null);
+    // Load the production build
+    const htmlPath = path.join(__dirname, '../dist/index.html');
+    console.log('Loading:', htmlPath);
 
-    // Load your app (development or production)
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html')); // Fixed this line
-
-    // Suppress DevTools console warnings (optional)
-    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-        if (message.includes("Autofill")) {
-            event.preventDefault();
-        }
+    mainWindow.loadFile(htmlPath).catch((err) => {
+        console.error('Error loading index.html:', err);
     });
 }
 

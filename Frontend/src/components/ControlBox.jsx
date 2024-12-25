@@ -1,10 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FaRecordVinyl, FaCamera, FaUpload, FaFolderOpen } from "react-icons/fa";
 import { SiReact } from "react-icons/si";
 
 const ControlBox = () => {
+  // Initialize state with values from localStorage if available
   const [isOpen, setIsOpen] = useState(false);
-  const [location, setLocation] = useState("");
+  const [location, setLocation] = useState(localStorage.getItem("location") || "C:/User/Documents");
+  const [recording, setRecording] = useState(localStorage.getItem("recording") === "true" || false);
+  const [snapShot, setSnapShot] = useState(localStorage.getItem("snapShot") === "true" || false);
+
+  useEffect(() => {
+    // Update localStorage whenever location, recording, or snapShot state changes
+    localStorage.setItem("location", location);
+    localStorage.setItem("recording", recording);
+    localStorage.setItem("snapShot", snapShot);
+  }, [location, recording, snapShot]);
 
   const handleChooseLocation = () => {
     // Create a file input to simulate system's file picker dialog
@@ -16,6 +26,14 @@ const ControlBox = () => {
       setLocation(chosenLocation);
     };
     fileInput.click(); // Open the file picker
+  };
+
+  const handleRecord = () => {
+    setRecording(!recording);
+  };
+
+  const handleSnap = () => {
+    setSnapShot(!snapShot);
   };
 
   return (
@@ -43,9 +61,10 @@ const ControlBox = () => {
           <div className="flex justify-around mb-6">
             <div className="flex flex-col items-center">
               <button
-                className="bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-500 transition-all"
+                onClick={handleRecord}
+                className={`bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-500 transition-all ${recording ? "bg-blue-700" : ""}`}
                 title="Record"
-                aria-label="Start Recording"
+                aria-label={recording ? "Stop Recording" : "Start Recording"}
               >
                 <FaRecordVinyl className="text-2xl" />
               </button>
@@ -53,9 +72,10 @@ const ControlBox = () => {
             </div>
             <div className="flex flex-col items-center">
               <button
-                className="bg-green-600 text-white p-4 rounded-lg hover:bg-green-500 transition-all"
+                onClick={handleSnap}
+                className={`bg-green-600 text-white p-4 rounded-lg hover:bg-green-500 transition-all ${snapShot ? "bg-green-700" : ""}`}
                 title="Snap"
-                aria-label="Take a Snapshot"
+                aria-label={snapShot ? "Stop Snapshot" : "Take Snapshot"}
               >
                 <FaCamera className="text-2xl" />
               </button>

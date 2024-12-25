@@ -1,7 +1,30 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
-const GeneralForm = ({ formData, handleInputChange }) => {
+const GeneralForm = () => {
   const [companyLogo, setCompanyLogo] = useState(null);
+  const [formData, setFormData] = useState({
+    companyName: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    country: "",
+    measureUnit: "Microns",
+    numImages: 1,
+    imageResolution: 1920,
+    decimalPoints: 2,
+  });
+
+  // Fetch saved data from localStorage if available
+  useEffect(() => {
+    const savedData = JSON.parse(localStorage.getItem("generalFormData"));
+    if (savedData) {
+      setFormData(savedData);
+      if (savedData.companyLogo) {
+        setCompanyLogo(savedData.companyLogo);
+      }
+    }
+  }, []);
 
   const handleLogoUpload = (e) => {
     const file = e.target.files[0];
@@ -12,6 +35,19 @@ const GeneralForm = ({ formData, handleInputChange }) => {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: value,
+    }));
+  };
+
+  const handleSave = () => {
+    localStorage.setItem("generalFormData", JSON.stringify(formData));
+    alert("Form data saved!");
   };
 
   return (
@@ -25,7 +61,7 @@ const GeneralForm = ({ formData, handleInputChange }) => {
           type="text"
           name="companyName"
           value={formData.companyName}
-          onChange={(e) => handleInputChange(e, "general")}
+          onChange={handleInputChange}
           required
           className="w-full px-4 py-2 border rounded-lg"
         />
@@ -38,7 +74,7 @@ const GeneralForm = ({ formData, handleInputChange }) => {
           type="text"
           name="addressLine1"
           value={formData.addressLine1}
-          onChange={(e) => handleInputChange(e, "general")}
+          onChange={handleInputChange}
           className="w-full px-4 py-2 border rounded-lg"
         />
       </div>
@@ -49,7 +85,7 @@ const GeneralForm = ({ formData, handleInputChange }) => {
           type="text"
           name="addressLine2"
           value={formData.addressLine2}
-          onChange={(e) => handleInputChange(e, "general")}
+          onChange={handleInputChange}
           className="w-full px-4 py-2 border rounded-lg"
         />
       </div>
@@ -61,7 +97,7 @@ const GeneralForm = ({ formData, handleInputChange }) => {
           type="text"
           name="city"
           value={formData.city}
-          onChange={(e) => handleInputChange(e, "general")}
+          onChange={handleInputChange}
           className="w-full px-4 py-2 border rounded-lg"
         />
       </div>
@@ -72,7 +108,7 @@ const GeneralForm = ({ formData, handleInputChange }) => {
           type="text"
           name="state"
           value={formData.state}
-          onChange={(e) => handleInputChange(e, "general")}
+          onChange={handleInputChange}
           className="w-full px-4 py-2 border rounded-lg"
         />
       </div>
@@ -83,7 +119,7 @@ const GeneralForm = ({ formData, handleInputChange }) => {
           type="text"
           name="country"
           value={formData.country}
-          onChange={(e) => handleInputChange(e, "general")}
+          onChange={handleInputChange}
           className="w-full px-4 py-2 border rounded-lg"
         />
       </div>
@@ -113,8 +149,8 @@ const GeneralForm = ({ formData, handleInputChange }) => {
         <label className="block text-gray-700 font-medium mb-2">Measure Unit</label>
         <select
           name="measureUnit"
-          value={formData.measureUnit || "Microns"}
-          onChange={(e) => handleInputChange(e, "general")}
+          value={formData.measureUnit}
+          onChange={handleInputChange}
           className="w-full px-4 py-2 border rounded-lg"
         >
           <option value="Microns">Microns</option>
@@ -123,14 +159,14 @@ const GeneralForm = ({ formData, handleInputChange }) => {
         </select>
       </div>
 
-      {/* Image Fields */}
+      {/* Number of Images, Resolution */}
       <div>
         <label className="block text-gray-700 font-medium mb-2">Number of Images Displayed</label>
         <input
           type="number"
           name="numImages"
           value={formData.numImages}
-          onChange={(e) => handleInputChange(e, "general")}
+          onChange={handleInputChange}
           className="w-full px-4 py-2 border rounded-lg"
         />
       </div>
@@ -141,7 +177,7 @@ const GeneralForm = ({ formData, handleInputChange }) => {
           type="number"
           name="imageResolution"
           value={formData.imageResolution}
-          onChange={(e) => handleInputChange(e, "general")}
+          onChange={handleInputChange}
           className="w-full px-4 py-2 border rounded-lg"
         />
       </div>
@@ -154,7 +190,7 @@ const GeneralForm = ({ formData, handleInputChange }) => {
           type="number"
           name="decimalPoints"
           value={formData.decimalPoints}
-          onChange={(e) => handleInputChange(e, "general")}
+          onChange={handleInputChange}
           className="w-full px-4 py-2 border rounded-lg"
         />
         <p className="text-red-500 text-sm mt-1">
@@ -162,170 +198,15 @@ const GeneralForm = ({ formData, handleInputChange }) => {
         </p>
       </div>
 
-      {/* Image Format */}
-      <div>
-        <label className="block text-gray-700 font-medium mb-2">Image Format</label>
-        <select
-          name="imageFormat"
-          value={formData.imageFormat || "jpg"}
-          onChange={(e) => handleInputChange(e, "general")}
-          className="w-full px-4 py-2 border rounded-lg"
+      {/* Save Button */}
+      <div className="col-span-2 mt-6 flex justify-end">
+        <button
+          type="button"
+          onClick={handleSave}
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
-          <option value="jpg">JPG</option>
-          <option value="png">PNG</option>
-          <option value="tiff">TIFF</option>
-        </select>
-      </div>
-
-      {/* Scale Length */}
-      <div>
-        <label className="block text-gray-700 font-medium mb-2">Scale Length</label>
-        <input
-          type="number"
-          name="scaleLength"
-          value={formData.scaleLength}
-          onChange={(e) => handleInputChange(e, "general")}
-          className="w-full px-4 py-2 border rounded-lg"
-        />
-      </div>
-
-      {/* Custom/Standard Report */}
-      <div>
-        <label className="block text-gray-700 font-medium mb-2">Custom/Standard Report</label>
-        <div className="flex items-center gap-4">
-          <label className="flex items-center">
-            <input
-              type="radio"
-              name="reportType"
-              value="custom"
-              checked={formData.reportType === "custom"}
-              onChange={(e) => handleInputChange(e, "general")}
-              className="mr-2"
-            />
-            Custom
-          </label>
-          <label className="flex items-center">
-            <input
-              type="radio"
-              name="reportType"
-              value="standard"
-              checked={formData.reportType === "standard"}
-              onChange={(e) => handleInputChange(e, "general")}
-              className="mr-2"
-            />
-            Standard
-          </label>
-        </div>
-      </div>
-      {/* Display Font Size */}
-      <div>
-        <label className="block font-medium mb-2">Display Font Size</label>
-        <input
-          type="number"
-          name="displayFontSize"
-          value={formData.displayFontSize || 12}
-          onChange={(e) => handleInputChange(e, "general")}
-          className="w-full px-4 py-2 border rounded-lg"
-        />
-      </div>
-
-      {/* Report Format */}
-        <div>
-        <label className="block font-medium mb-2">Report Format</label>
-        <select
-            name="reportFormat"
-            value={formData.reportFormat || "Excel"}
-            onChange={(e) => handleInputChange(e, "general")}
-            className="w-full px-4 py-2 border rounded-lg"
-        >
-            <option value="Excel">Excel</option>
-            <option value="PDF">PDF</option>
-            <option value="CSV">CSV</option>
-        </select>
-        </div>
-
-
-      {/* Dark/Light Features */}
-      <div>
-        <label className="block font-medium mb-2">Dark Feature Range</label>
-        <div className="flex gap-2">
-          <input
-            type="number"
-            name="darkFeatureMin"
-            value={formData.darkFeatureMin || 0}
-            onChange={(e) => handleInputChange(e, "general")}
-            className="w-full px-4 py-2 border rounded-lg"
-          />
-          <input
-            type="number"
-            name="darkFeatureMax"
-            value={formData.darkFeatureMax || 128}
-            onChange={(e) => handleInputChange(e, "general")}
-            className="w-full px-4 py-2 border rounded-lg"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block font-medium mb-2">Light Feature Range</label>
-        <div className="flex gap-2">
-          <input
-            type="number"
-            name="lightFeatureMin"
-            value={formData.lightFeatureMin || 129}
-            onChange={(e) => handleInputChange(e, "general")}
-            className="w-full px-4 py-2 border rounded-lg"
-          />
-          <input
-            type="number"
-            name="lightFeatureMax"
-            value={formData.lightFeatureMax || 255}
-            onChange={(e) => handleInputChange(e, "general")}
-            className="w-full px-4 py-2 border rounded-lg"
-          />
-        </div>
-      </div>
-
-      {/* Minimum Pixels for Features */}
-      <div>
-        <label className="block font-medium mb-2">Minimum Pixels for Features</label>
-        <input
-          type="number"
-          name="minPixels"
-          value={formData.minPixels || 10}
-          onChange={(e) => handleInputChange(e, "general")}
-          className="w-full px-4 py-2 border rounded-lg"
-        />
-      </div>
-
-      {/* Circularity Cutoff */}
-      <div>
-        <label className="block font-medium mb-2">
-          Circularity Cutoff <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="number"
-          name="circularityCutoff"
-          value={formData.circularityCutoff || 0.5}
-          step="0.01"
-          min="0.01"
-          max="0.99"
-          onChange={(e) => handleInputChange(e, "general")}
-          className="w-full px-4 py-2 border rounded-lg"
-        />
-        <p className="text-red-500 text-sm mt-1">(0 and 1)</p>
-      </div>
-
-      {/* Minimum Length for Nodularity */}
-      <div>
-        <label className="block font-medium mb-2">Minimum Length for Nodularity</label>
-        <input
-          type="number"
-          name="minNodularityLength"
-          value={formData.minNodularityLength || 10}
-          onChange={(e) => handleInputChange(e, "general")}
-          className="w-full px-4 py-2 border rounded-lg"
-        />
+          Save
+        </button>
       </div>
     </form>
   );
