@@ -1,9 +1,0 @@
-npm install react react-dom
-npm install lucide-react
-npm install -D tailwindcss postcss autoprefixer
-npx tailwindcss init
-npm install @radix-ui/react-popover
-npm install @radix-ui/react-select
-npm install date-fns
-npm install @shadcn/ui
-npm install framer-motion
