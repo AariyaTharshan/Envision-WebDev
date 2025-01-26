@@ -1,150 +1,170 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-function CameraConfiguration({ onClose }) {
-  const [resolution, setResolution] = useState('');
-  const [camera, setCamera] = useState('');
-  const [cameraType, setCameraType] = useState('Default');
+const CameraConfiguration = () => {
+  const [selectedCamera, setSelectedCamera] = useState('');
+  const [resolution, setResolution] = useState('1920x1080');
+  const [dimensions, setDimensions] = useState({ width: 1920, height: 1080 });
+  const [saveStatus, setSaveStatus] = useState(''); // For showing save status message
 
-  // Handle change for resolution dropdown
-  const handleResolutionChange = (e) => {
-    setResolution(e.target.value);
-  };
+  const cameras = [
+    'MSHOT',
+    'HIKERBOT',
+    'USBC',
+    'WEBCAM'
+  ];
 
-  // Handle change for camera dropdown
-  const handleCameraChange = (e) => {
-    setCamera(e.target.value);
-  };
+  const resolutionOptions = [
+    '640x480',
+    '1280x720',
+    '1920x1080',
+    '2560x1440',
+    '3840x2160'
+  ];
 
-  // Handle change for camera type radio buttons
-  const handleCameraTypeChange = (e) => {
-    setCameraType(e.target.value);
-  };
+  // Update dimensions when resolution changes
+  useEffect(() => {
+    const [width, height] = resolution.split('x').map(Number);
+    setDimensions({ width, height });
+  }, [resolution]);
 
-  // Handle save action
-  const handleSave = () => {
-    console.log('Saved Camera Configuration:', { resolution, camera, cameraType });
-    // Optionally close the modal after save
-    if (onClose) {
-      onClose();
+  const handleSave = async () => {
+    if (!selectedCamera) {
+      setSaveStatus('Please select a camera');
+      setTimeout(() => setSaveStatus(''), 3000);
+      return;
     }
-  };
 
-  // Handle cancel action
-  const handleCancel = () => {
-    console.log('Cancelled Camera Configuration');
-    // Reset all states
-    setResolution('');
-    setCamera('');
-    setCameraType('Default');
-    // Close the modal when cancelled
-    if (onClose) {
-      onClose();
+    try {
+      // Save to localStorage for persistence
+      const settings = {
+        camera: selectedCamera,
+        resolution: resolution,
+        timestamp: new Date().toISOString()
+      };
+      
+      localStorage.setItem('cameraSettings', JSON.stringify(settings));
+      
+      setSaveStatus('Settings saved successfully');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      setSaveStatus('Error saving settings');
+      setTimeout(() => setSaveStatus(''), 3000);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <form
-        className="bg-white text-gray-700 rounded-lg shadow-2xl p-8 max-w-lg mx-auto mt-12 space-y-6 transform transition-all duration-300"
-      >
-        <h2 className="text-3xl font-semibold text-center text-gray-800 mb-6">Camera Configuration</h2>
+    <div className="w-80 p-4">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
+        <svg 
+          className="w-5 h-5 text-blue-600" 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth={2} 
+            d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" 
+          />
+        </svg>
+        <h2 className="text-lg font-semibold text-gray-800">Camera Setup</h2>
+      </div>
 
-        {/* Resolution Dropdown */}
-        <div className="space-y-2">
-          <label className="block text-lg font-medium text-gray-700">Resolution</label>
+      <div className="space-y-4">
+        {/* Camera Selection */}
+        <div className="bg-gray-50 p-3 rounded-lg">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Camera Type
+          </label>
           <select
-            value={resolution}
-            onChange={handleResolutionChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Select Resolution</option>
-            <option value="1920x1080">1920x1080</option>
-            <option value="1280x720">1280x720</option>
-            <option value="640x480">640x480</option>
-            <option value="2560x1440">2560x1440</option>
-            <option value="3840x2160">3840x2160</option>
-          </select>
-        </div>
-
-        {/* Camera Dropdown */}
-        <div className="space-y-2">
-          <label className="block text-lg font-medium text-gray-700">Camera</label>
-          <select
-            value={camera}
-            onChange={handleCameraChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={selectedCamera}
+            onChange={(e) => setSelectedCamera(e.target.value)}
+            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm 
+              focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500
+              bg-white text-sm"
           >
             <option value="">Select Camera</option>
-            <option value="Camera 1">Camera 1</option>
-            <option value="Camera 2">Camera 2</option>
-            <option value="Camera 3">Camera 3</option>
-            <option value="Camera 4">Camera 4</option>
+            {cameras.map(camera => (
+              <option key={camera} value={camera}>{camera}</option>
+            ))}
           </select>
         </div>
 
-        {/* Camera Type Radio Buttons */}
-        <div className="space-y-4">
-          <label className="block text-lg font-medium text-gray-700">Camera Type</label>
-          <div className="flex space-x-6">
-            <div className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="default"
-                name="cameraType"
-                value="Default"
-                checked={cameraType === 'Default'}
-                onChange={handleCameraTypeChange}
-                className="text-blue-500"
-              />
-              <label htmlFor="default" className="text-lg text-gray-700">Default</label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="others"
-                name="cameraType"
-                value="Others"
-                checked={cameraType === 'Others'}
-                onChange={handleCameraTypeChange}
-                className="text-blue-500"
-              />
-              <label htmlFor="others" className="text-lg text-gray-700">Others</label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="twain"
-                name="cameraType"
-                value="Twain"
-                checked={cameraType === 'Twain'}
-                onChange={handleCameraTypeChange}
-                className="text-blue-500"
-              />
-              <label htmlFor="twain" className="text-lg text-gray-700">Twain</label>
-            </div>
+        {/* Resolution Selection */}
+        <div className="bg-gray-50 p-3 rounded-lg">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Resolution
+          </label>
+          <select
+            value={resolution}
+            onChange={(e) => setResolution(e.target.value)}
+            className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm 
+              focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500
+              bg-white text-sm"
+          >
+            {resolutionOptions.map(option => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Dimensions Display */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Width Display */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Width
+            </label>
+            <input
+              type="text"
+              value={dimensions.width}
+              readOnly
+              className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md 
+                bg-white text-sm text-gray-600"
+            />
+          </div>
+
+          {/* Height Display */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Height
+            </label>
+            <input
+              type="text"
+              value={dimensions.height}
+              readOnly
+              className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md 
+                bg-white text-sm text-gray-600"
+            />
           </div>
         </div>
 
-        {/* Buttons */}
-        <div className="flex justify-end space-x-6">
+        {/* Save Button */}
+        <div className="pt-2">
           <button
-            type="button"
             onClick={handleSave}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500"
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md
+              hover:bg-blue-700 transition-colors duration-200
+              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
-            Save
+            Save Configuration
           </button>
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-500"
-          >
-            Cancel
-          </button>
+          
+          {/* Save Status Message */}
+          {saveStatus && (
+            <div className={`mt-2 text-sm text-center ${
+              saveStatus.includes('Error') ? 'text-red-600' : 'text-green-600'
+            }`}>
+              {saveStatus}
+            </div>
+          )}
         </div>
-      </form>
+      </div>
     </div>
   );
-}
+};
 
-export default CameraConfiguration;
+export default CameraConfiguration; 

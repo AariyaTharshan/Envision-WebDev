@@ -1,157 +1,210 @@
-import React, { useState, useEffect } from "react";
-import { FaRecordVinyl, FaCamera, FaUpload, FaFolderOpen } from "react-icons/fa";
-import { SiReact } from "react-icons/si";
+import React, { useState, useRef, useEffect } from 'react';
 
-const ControlBox = () => {
-  // Initialize state with values from localStorage if available
+const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [location, setLocation] = useState(localStorage.getItem("location") || "C:/User/Documents");
-  const [recording, setRecording] = useState(localStorage.getItem("recording") === "true" || false);
-  const [snapShot, setSnapShot] = useState(localStorage.getItem("snapShot") === "true" || false);
+  const [magnification, setMagnification] = useState('100x');
+  const [location, setLocation] = useState('C:\\Users\\Public\\MicroScope_Images');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const dropdownRef = useRef(null);
+
+  const magnificationOptions = ['50x', '100x', '200x', '500x', '1000x'];
 
   useEffect(() => {
-    // Update localStorage whenever location, recording, or snapShot state changes
-    localStorage.setItem("location", location);
-    localStorage.setItem("recording", recording);
-    localStorage.setItem("snapShot", snapShot);
-  }, [location, recording, snapShot]);
-
-  const handleChooseLocation = () => {
-    // Create a file input to simulate system's file picker dialog
-    const fileInput = document.createElement("input");
-    fileInput.type = "file";
-    fileInput.webkitdirectory = true; // Enables directory selection
-    fileInput.onchange = (event) => {
-      const chosenLocation = event.target.files[0]?.path || "C:/User/Documents"; // Selects the first file path
-      setLocation(chosenLocation);
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
     };
-    fileInput.click(); // Open the file picker
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleRecord = async () => {
+    try {
+      if (!isRecording) {
+        const response = await fetch('http://localhost:5000/api/start-camera', {
+          method: 'POST'
+        });
+        
+        const data = await response.json();
+        if (data.status === 'success') {
+          setIsRecording(true);
+          setImagePath(null);
+        } else {
+          alert('Failed to start webcam: ' + data.message);
+        }
+      } else {
+        await fetch('http://localhost:5000/api/stop-camera', {
+          method: 'POST'
+        });
+        setIsRecording(false);
+      }
+    } catch (error) {
+      console.error('Error controlling webcam:', error);
+      alert('Error controlling webcam: ' + error.message);
+    }
   };
 
-  const handleRecord = () => {
-    setRecording(!recording);
+  const handleSnap = async () => {
+    try {
+      await fetch('http://localhost:5000/api/stop-camera', {
+        method: 'POST'
+      });
+      setIsRecording(false);
+
+      const response = await fetch('http://localhost:5000/api/snapshot', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ savePath: location })
+      });
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        console.log('Image saved at:', data.filepath);
+        setImagePath(data.filepath);
+      } else {
+        alert('Failed to take snapshot: ' + data.message);
+      }
+    } catch (error) {
+      console.error('Error taking snapshot:', error);
+      alert('Error taking snapshot: ' + error.message);
+    }
   };
 
-  const handleSnap = () => {
-    setSnapShot(!snapShot);
+  const handleImport = async (event) => {
+    try {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('http://localhost:5000/api/import-image', {
+        method: 'POST',
+        body: formData // Don't set Content-Type, browser will set it automatically
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        console.log('Image imported at:', data.filepath);
+        setIsRecording(false);
+        setImagePath(data.filepath);
+      } else {
+        alert('Failed to import image: ' + data.message);
+      }
+    } catch (error) {
+      console.error('Error importing image:', error);
+      alert('Error importing image: ' + error.message);
+    }
   };
 
   return (
-    <div className="fixed bottom-4 left-4 z-50">
-      {/* Toggle Button (Open/Close) */}
+    <div className="fixed bottom-6 left-6" ref={dropdownRef}>
+      {/* Circular Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-gray-800 text-white p-4 rounded-full shadow-lg hover:bg-gray-700 focus:outline-none transition-all"
-        aria-label={isOpen ? "Close Control Box" : "Open Control Box"}
+        className="w-12 h-12 rounded-full bg-blue-600 text-white shadow-lg 
+          hover:bg-blue-700 transition-all duration-200 flex items-center justify-center
+          hover:scale-105 active:scale-95"
+        title="Controls"
       >
-        {isOpen ? (
-          <FaFolderOpen className="text-2xl" />
-        ) : (
-          <SiReact className="text-2xl" />
-        )}
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+            d={isOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
+        </svg>
       </button>
 
-      {/* Control Box */}
+      {/* Compact Dropdown Panel */}
       {isOpen && (
-        <div className="mt-4 bg-gray-900 rounded-lg shadow-xl p-6 w-full sm:w-80 md:w-full max-w-l">
-          {/* Title */}
-          <h2 className="text-xl text-white font-semibold mb-4">Control Box</h2>
+        <div className="absolute bottom-16 left-0 bg-white rounded-2xl shadow-xl p-4 w-72
+          border border-gray-100 transform transition-all duration-200 ease-in-out">
+          {/* Control Buttons Row */}
+          <div className="flex justify-between mb-4 gap-2">
+            {/* Record Button */}
+            <button
+              onClick={handleRecord}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all
+                ${isRecording ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600'}
+                hover:scale-105 active:scale-95`}
+              title={isRecording ? "Stop Recording" : "Start Recording"}
+            >
+              <div className={`w-3 h-3 rounded-full ${isRecording ? 'bg-white' : 'bg-red-500'}`} />
+            </button>
 
-          {/* Buttons with Icons */}
-          <div className="flex justify-around mb-6">
-            <div className="flex flex-col items-center">
-              <button
-                onClick={handleRecord}
-                className={`bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-500 transition-all ${recording ? "bg-blue-700" : ""}`}
-                title="Record"
-                aria-label={recording ? "Stop Recording" : "Start Recording"}
-              >
-                <FaRecordVinyl className="text-2xl" />
-              </button>
-              <span className="text-sm text-white mt-2">Record</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <button
-                onClick={handleSnap}
-                className={`bg-green-600 text-white p-4 rounded-lg hover:bg-green-500 transition-all ${snapShot ? "bg-green-700" : ""}`}
-                title="Snap"
-                aria-label={snapShot ? "Stop Snapshot" : "Take Snapshot"}
-              >
-                <FaCamera className="text-2xl" />
-              </button>
-              <span className="text-sm text-white mt-2">Snap</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <button
-                className="bg-yellow-600 text-white p-4 rounded-lg hover:bg-yellow-500 transition-all"
-                title="Import"
-                aria-label="Import Files"
-              >
-                <FaUpload className="text-2xl" />
-              </button>
-              <span className="text-sm text-white mt-2">Import</span>
-            </div>
+            {/* Snap Button */}
+            <button
+              onClick={handleSnap}
+              className="w-12 h-12 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center
+                hover:bg-gray-200 transition-all hover:scale-105 active:scale-95"
+              title="Take Snapshot"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  d="M3 9a2 2 0 012-2h2.5l1-2h5l1 2H17a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              </svg>
+            </button>
+
+            {/* Import Button */}
+            <label 
+              className="w-12 h-12 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center
+                hover:bg-gray-200 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              title="Import Image"
+            >
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImport}
+                className="hidden"
+              />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </label>
           </div>
 
-          {/* Magnification and Location in one line */}
-          <div className="flex mb-6 gap-4">
-            <div className="flex-1">
-              <label htmlFor="magnification" className="text-white mb-2 block">
-                Magnification
-              </label>
+          {/* Settings Section */}
+          <div className="space-y-3">
+            {/* Magnification Compact Dropdown */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 w-24">Magnification:</label>
               <select
-                id="magnification"
-                className="w-full px-4 py-2 bg-gray-800 text-white border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500"
+                value={magnification}
+                onChange={(e) => setMagnification(e.target.value)}
+                className="flex-1 p-1 border rounded text-sm"
               >
-                <option value="10x">10x</option>
-                <option value="1000x">1000x</option>
+                {magnificationOptions.map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
               </select>
             </div>
 
-            <div className="flex-1">
-              <label htmlFor="location" className="text-white mb-2 block">
-                Location
-              </label>
-              <div className="flex items-center">
-                <input
-                  type="text"
-                  id="location"
-                  value={location}
-                  readOnly
-                  className="flex-1 px-4 py-2 bg-gray-800 text-white border border-gray-600 rounded-l-lg"
-                  placeholder="Select Location"
-                />
-                <button
-                  onClick={handleChooseLocation}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-r-lg hover:bg-blue-500 transition-all"
-                  aria-label="Choose Location"
-                >
-                  <FaFolderOpen className="text-2xl" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Date Range Inputs in another line */}
-          <div className="flex mb-6 gap-4">
-            <div className="flex-1">
-              <label htmlFor="fromDate" className="text-white mb-2 block">
-                From Date
-              </label>
+            {/* Date Range */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 w-24">From:</label>
               <input
                 type="date"
-                id="fromDate"
-                className="w-full px-4 py-2 bg-gray-800 text-white border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="flex-1 p-1 border rounded text-sm"
               />
             </div>
-            <div className="flex-1">
-              <label htmlFor="toDate" className="text-white mb-2 block">
-                To Date
-              </label>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 w-24">To:</label>
               <input
                 type="date"
-                id="toDate"
-                className="w-full px-4 py-2 bg-gray-800 text-white border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="flex-1 p-1 border rounded text-sm"
               />
             </div>
           </div>
@@ -161,4 +214,4 @@ const ControlBox = () => {
   );
 };
 
-export default ControlBox;
+export default ControlBox; 
