@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import CameraCalibrate from "./CameraCalibrate";
 import CameraConfiguration from "./CameraConfiguration";
 
-const Navbar = () => {
+const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [showCalibrate, setShowCalibrate] = useState(false);
   const [showCameraConfig, setShowCameraConfig] = useState(false);
@@ -91,11 +91,99 @@ const Navbar = () => {
     }
   };
 
+  const handleRotate = async (direction) => {
+    try {
+      if (!imagePath) {
+        alert('No image to rotate');
+        return;
+      }
+
+      console.log('Sending rotation request to server...');
+      const response = await fetch('http://localhost:5000/api/rotate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          imagePath: imagePath,
+          direction: direction
+        })
+      });
+
+      console.log('Server response received:', response.status);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Rotation response data:', data);
+
+      if (data.status === 'success') {
+        console.log('Setting new image path:', data.filepath);
+        setImagePath(data.filepath);
+      } else {
+        alert('Failed to rotate image: ' + data.message);
+      }
+    } catch (error) {
+      console.error('Error rotating image:', error);
+      alert('Error rotating image: ' + error.message);
+    }
+  };
+
+  const handleFlip = async (direction) => {
+    try {
+      if (!imagePath) {
+        alert('No image to flip');
+        return;
+      }
+
+      console.log('Sending flip request to server...');
+      const response = await fetch('http://localhost:5000/api/flip-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          imagePath: imagePath,
+          direction: direction
+        })
+      });
+
+      console.log('Server response received:', response.status);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Flip response data:', data);
+
+      if (data.status === 'success') {
+        console.log('Setting new image path:', data.filepath);
+        setImagePath(data.filepath);
+      } else {
+        alert('Failed to flip image: ' + data.message);
+      }
+    } catch (error) {
+      console.error('Error flipping image:', error);
+      alert('Error flipping image: ' + error.message);
+    }
+  };
+
   const handleOptionClick = (option) => {
     if (option === "Calibrate") {
       setShowCalibrate(true);
     } else if (option === "Camera Configuration") {
       setShowCameraConfig(true);
+    } else if (option === "Rotate Clockwise") {
+      handleRotate('clockwise');
+    } else if (option === "Rotate Anti-Clockwise") {
+      handleRotate('anticlockwise');
+    } else if (option === "Flip Horizontal") {
+      handleFlip('horizontal');
+    } else if (option === "Flip Vertical") {
+      handleFlip('vertical');
     }
     setActiveDropdown(null);
   };

@@ -7,10 +7,9 @@
   "scripts": {
     "start": "vite",
     "build": "vite build",
+    "postinstall": "node electron/install-python-deps.js",
     "electron-dev": "cross-env NODE_ENV=development electron .",
-    "electron-build": "vite build && cross-env NODE_ENV=production electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "electron-build": "vite build && cross-env NODE_ENV=production electron-builder"
   },
   "dependencies": {
     "@radix-ui/react-popover": "^1.1.2",
