@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from datetime import datetime
 from werkzeug.utils import secure_filename
+from PIL import Image
+import numpy as np
 
 app = Flask(__name__)
 CORS(app)
@@ -17,13 +19,8 @@ class WebcamManager:
         self.is_recording = False
         self.frame = None
         self.thread = None
-        self.last_frame = None  # Store the last frame for snapshot
+        self.last_frame = None
         self.default_save_path = 'C:\\Users\\Public\\MicroScope_Images'
-        # Standard microscope resolution
-        self.calibration_resolution = {
-            'width': 1920,
-            'height': 1080
-        }
 
     def start_camera(self):
         try:
@@ -36,18 +33,12 @@ class WebcamManager:
                 print("Failed to open webcam")
                 return False
             
-            # Set calibrated resolution
-            self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, self.calibration_resolution['width'])
-            self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, self.calibration_resolution['height'])
-            
-            # Verify the resolution was set
-            actual_width = self.camera.get(cv2.CAP_PROP_FRAME_WIDTH)
-            actual_height = self.camera.get(cv2.CAP_PROP_FRAME_HEIGHT)
-            print(f"Camera resolution set to: {actual_width}x{actual_height}")
+            # Get the native resolution
+            native_width = self.camera.get(cv2.CAP_PROP_FRAME_WIDTH)
+            native_height = self.camera.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            print(f"Camera native resolution: {native_width}x{native_height}")
             
             self.is_recording = True
-            
-            # Start frame capture thread
             self.thread = threading.Thread(target=self.capture_frames)
             self.thread.daemon = True
             self.thread.start()
@@ -66,11 +57,7 @@ class WebcamManager:
 
                 success, frame = self.camera.read()
                 if success:
-                    # Resize frame to match calibration resolution
-                    frame = cv2.resize(frame, 
-                        (self.calibration_resolution['width'], 
-                         self.calibration_resolution['height']))
-                    
+                    # No resizing, use native resolution
                     frame = cv2.flip(frame, 1)
                     _, buffer = cv2.imencode('.jpg', frame)
                     self.frame = buffer.tobytes()
@@ -82,7 +69,6 @@ class WebcamManager:
                 print(f"Error capturing frame: {str(e)}")
                 break
 
-        # Don't call stop_camera here to avoid recursion
         self.is_recording = False
 
     def stop_camera(self):
@@ -265,6 +251,122 @@ def import_image():
             
     except Exception as e:
         print(f"Error in import process: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/rotate-image', methods=['POST'])
+def rotate_image():
+    try:
+        print("Rotation endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        direction = data.get('direction', 'clockwise')
+        
+        print(f"Processing rotation: {direction} for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Simple 90-degree rotation without any scaling or interpolation
+        if direction == 'clockwise':
+            rotated_img = np.rot90(img, k=-1)  # -1 for clockwise
+        else:
+            rotated_img = np.rot90(img, k=1)   # 1 for counterclockwise
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_rotated{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving rotated image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, rotated_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Rotation completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during rotation: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/flip-image', methods=['POST'])
+def flip_image():
+    try:
+        print("Flip endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        direction = data.get('direction', 'horizontal')
+        
+        print(f"Processing flip: {direction} for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Flip the image based on direction
+        if direction == 'horizontal':
+            flipped_img = cv2.flip(img, 1)  # 1 for horizontal flip
+        else:
+            flipped_img = cv2.flip(img, 0)  # 0 for vertical flip
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_flipped{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving flipped image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, flipped_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Flip completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during flip: {str(e)}")
+        print(f"Error type: {type(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e)

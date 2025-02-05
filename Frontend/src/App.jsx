@@ -6,14 +6,23 @@ import Display from './components/Display'
 const App = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [imagePath, setImagePath] = useState(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState(null);
+
+  const handleImageLoad = (url) => {
+    setCurrentImageUrl(url);
+  };
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <Navbar className="flex-none" />
+      <Navbar 
+        imagePath={imagePath} 
+        setImagePath={setImagePath} 
+      />
       <main className="flex-1 relative">
         <Display 
           isRecording={isRecording} 
-          imagePath={imagePath} 
+          imagePath={imagePath}
+          onImageLoad={handleImageLoad}
         />
         <ControlBox 
           isRecording={isRecording}
@@ -22,7 +31,7 @@ const App = () => {
         />
       </main>
     </div>
-  )
-}
+  );
+};
 
-export default App
+export default App;
