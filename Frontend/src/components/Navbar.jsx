@@ -191,40 +191,40 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
   return (
     <>
       <nav className="bg-gray-800 text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="relative flex items-center justify-between h-16">
-            {/* Mobile menu button */}
-            <div className="md:hidden">
-              <button className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none">
-                <span className="sr-only">Open main menu</span>
-                <svg
-                  className="block h-6 w-6"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                </svg>
-              </button>
-            </div>
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="relative flex items-center justify-between h-16">
+          {/* Mobile menu button */}
+          <div className="md:hidden">
+            <button className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none">
+              <span className="sr-only">Open main menu</span>
+              <svg
+                className="block h-6 w-6"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
+              </svg>
+            </button>
+          </div>
 
-            {/* Desktop menu */}
-            <div className="hidden md:block">
-              <div className="flex space-x-4">
-                {menuItems.map((item, index) => (
+          {/* Desktop menu */}
+          <div className="hidden md:block">
+            <div className="flex space-x-4">
+              {menuItems.map((item, index) => (
                   <div 
                     key={index} 
                     className="relative"
                     ref={el => dropdownRefs.current[index] = el}
                   >
-                    <button
-                      onClick={() => handleDropdown(index)}
+                  <button
+                    onClick={() => handleDropdown(index)}
                       onKeyDown={(e) => handleKeyDown(e, index)}
                       className={`px-3 py-2 rounded-md text-sm font-medium 
                         transition-colors duration-200 ease-in-out
@@ -234,48 +234,48 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
                         }
                         focus:outline-none focus:ring-2 focus:ring-offset-2 
                         focus:ring-offset-gray-800 focus:ring-white`}
-                      aria-expanded={activeDropdown === index}
+                    aria-expanded={activeDropdown === index}
                       role="menuitem"
                       tabIndex={0}
-                    >
-                      {item.name}
-                    </button>
-                    
-                    {activeDropdown === index && (
+                  >
+                    {item.name}
+                  </button>
+                  
+                  {activeDropdown === index && (
                       <div 
                         className="origin-top-left absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 
                           transform transition-all duration-200 ease-in-out z-50"
                         role="menu"
                       >
-                        <div className="py-1">
-                          {item.options.map((option, optionIndex) => (
-                            <a
-                              key={optionIndex}
-                              href="#"
+                      <div className="py-1">
+                        {item.options.map((option, optionIndex) => (
+                          <a
+                            key={optionIndex}
+                            href="#"
                               className="block px-4 py-2 text-sm text-gray-700 
                                 hover:bg-gray-100 hover:text-gray-900
                                 transition-colors duration-150 ease-in-out
                                 focus:outline-none focus:bg-gray-100 focus:text-gray-900"
-                              onClick={(e) => {
-                                e.preventDefault();
+                            onClick={(e) => {
+                              e.preventDefault();
                                 handleOptionClick(option);
-                              }}
+                            }}
                               role="menuitem"
                               tabIndex={0}
-                            >
-                              {option}
-                            </a>
-                          ))}
-                        </div>
+                          >
+                            {option}
+                          </a>
+                        ))}
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </nav>
+      </div>
+    </nav>
 
       {/* Camera Configuration Modal */}
       {showCameraConfig && (

@@ -4,11 +4,15 @@ import cv2
 import time
 import threading
 import os
+import sys
 from pathlib import Path
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from PIL import Image
 import numpy as np
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'MvImport')))
+from MvCameraControl_class import *
 
 app = Flask(__name__)
 CORS(app)
@@ -21,23 +25,66 @@ class WebcamManager:
         self.thread = None
         self.last_frame = None
         self.default_save_path = 'C:\\Users\\Public\\MicroScope_Images'
+        self.current_camera_type = None
+        self.hikrobot_camera = None  # For HIKROBOT camera instance
 
-    def start_camera(self):
+    def start_camera(self, camera_type=None):
         try:
             if self.camera is not None:
                 self.stop_camera()
 
-            self.camera = cv2.VideoCapture(0)
-            
-            if not self.camera.isOpened():
-                print("Failed to open webcam")
-                return False
-            
-            # Get the native resolution
-            native_width = self.camera.get(cv2.CAP_PROP_FRAME_WIDTH)
-            native_height = self.camera.get(cv2.CAP_PROP_FRAME_HEIGHT)
-            print(f"Camera native resolution: {native_width}x{native_height}")
-            
+            print(f"Starting camera with type: {camera_type}")
+
+            if camera_type == "HIKERBOT":
+                # Initialize HIKROBOT camera
+                self.hikrobot_camera = MvCamera()
+                
+                # Initialize SDK
+                ret = self.hikrobot_camera.MV_CC_Initialize()
+                if ret != 0:
+                    print("Initialize SDK fail!")
+                    return False
+
+                # Enumerate devices
+                deviceList = MV_CC_DEVICE_INFO_LIST()
+                ret = self.hikrobot_camera.MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, deviceList)
+                if ret != 0:
+                    print("Enum Devices fail!")
+                    return False
+
+                if deviceList.nDeviceNum == 0:
+                    print("No HIKROBOT camera found!")
+                    return False
+
+                # Select first available device
+                stDeviceList = cast(deviceList.pDeviceInfo[0], POINTER(MV_CC_DEVICE_INFO)).contents
+
+                # Create handle
+                ret = self.hikrobot_camera.MV_CC_CreateHandle(stDeviceList)
+                if ret != 0:
+                    print("Create Handle fail!")
+                    return False
+
+                # Open device
+                ret = self.hikrobot_camera.MV_CC_OpenDevice(MV_ACCESS_Exclusive, 0)
+                if ret != 0:
+                    print("Open Device fail!")
+                    return False
+
+                # Start grabbing
+                ret = self.hikrobot_camera.MV_CC_StartGrabbing()
+                if ret != 0:
+                    print("Start Grabbing fail!")
+                    return False
+
+                self.camera = self.hikrobot_camera
+                self.current_camera_type = 'HIKERBOT'
+            else:
+                # Default webcam (index 0)
+                print("Using default webcam")
+                self.camera = cv2.VideoCapture(0)
+                self.current_camera_type = 'WEBCAM'
+
             self.is_recording = True
             self.thread = threading.Thread(target=self.capture_frames)
             self.thread.daemon = True
@@ -45,25 +92,42 @@ class WebcamManager:
             
             return True
         except Exception as e:
-            print(f"Error starting webcam: {str(e)}")
+            print(f"Error starting camera: {str(e)}")
             return False
 
     def capture_frames(self):
         while self.is_recording:
             try:
-                if self.camera is None or not self.camera.isOpened():
-                    print("Webcam is not opened")
-                    break
-
-                success, frame = self.camera.read()
-                if success:
-                    # No resizing, use native resolution
-                    frame = cv2.flip(frame, 1)
-                    _, buffer = cv2.imencode('.jpg', frame)
-                    self.frame = buffer.tobytes()
-                    self.last_frame = self.frame
+                if self.current_camera_type == 'HIKERBOT':
+                    # Get HIKROBOT frame
+                    stOutFrame = MV_FRAME_OUT()
+                    ret = self.camera.MV_CC_GetImageBuffer(stOutFrame, 1000)
+                    if ret == 0:
+                        # Convert frame to OpenCV format
+                        pData = (c_ubyte * stOutFrame.stFrameInfo.nFrameLen)()
+                        cdll.msvcrt.memcpy(byref(pData), stOutFrame.pBufAddr, stOutFrame.stFrameInfo.nFrameLen)
+                        data = np.frombuffer(pData, count=int(stOutFrame.stFrameInfo.nFrameLen), dtype=np.uint8)
+                        frame = data.reshape((stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, -1))
+                        
+                        # Release buffer
+                        self.camera.MV_CC_FreeImageBuffer(stOutFrame)
+                        
+                        # Convert to JPEG
+                        _, buffer = cv2.imencode('.jpg', frame)
+                        self.frame = buffer.tobytes()
+                        self.last_frame = self.frame
                 else:
-                    print("Failed to read frame")
+                    # Regular webcam capture
+                    if self.camera is None or not self.camera.isOpened():
+                        break
+
+                    success, frame = self.camera.read()
+                    if success:
+                        frame = cv2.flip(frame, 1)
+                        _, buffer = cv2.imencode('.jpg', frame)
+                        self.frame = buffer.tobytes()
+                        self.last_frame = self.frame
+
                 time.sleep(0.033)
             except Exception as e:
                 print(f"Error capturing frame: {str(e)}")
@@ -72,15 +136,22 @@ class WebcamManager:
         self.is_recording = False
 
     def stop_camera(self):
-        was_recording = self.is_recording
         self.is_recording = False
-        if self.thread and was_recording:
+        if self.thread:
             self.thread.join(timeout=1.0)
-        if self.camera:
-            self.camera.release()
+        
+        if self.current_camera_type == 'HIKERBOT':
+            if self.camera:
+                self.camera.MV_CC_StopGrabbing()
+                self.camera.MV_CC_CloseDevice()
+                self.camera.MV_CC_DestroyHandle()
+        else:
+            if self.camera:
+                self.camera.release()
+        
         self.camera = None
         self.frame = None
-        # Don't clear last_frame as we might need it for snapshot
+        self.current_camera_type = None
 
     def take_snapshot(self, save_path=None):
         if self.last_frame:
@@ -111,9 +182,13 @@ webcam = WebcamManager()
 @app.route('/api/start-camera', methods=['POST'])
 def start_camera():
     try:
-        if webcam.start_camera():
+        data = request.get_json()
+        camera_type = data.get('cameraType')
+        print(f"Starting camera with type: {camera_type}")  # Debug log
+        
+        if webcam.start_camera(camera_type):
             return jsonify({'status': 'success'})
-        return jsonify({'status': 'error', 'message': 'Failed to start webcam'})
+        return jsonify({'status': 'error', 'message': 'Failed to start camera'})
     except Exception as e:
         print(f"Error in start_camera route: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)})

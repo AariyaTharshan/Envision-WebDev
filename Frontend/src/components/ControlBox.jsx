@@ -10,8 +10,21 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
   const handleRecord = async () => {
     try {
       if (!isRecording) {
+        // Get camera settings from localStorage
+        const savedSettings = localStorage.getItem('cameraSettings');
+        const settings = savedSettings ? JSON.parse(savedSettings) : null;
+        const cameraType = settings ? settings.camera : null;
+
+        console.log('Starting camera with type:', cameraType); // Debug log
+
         const response = await fetch('http://localhost:5000/api/start-camera', {
-          method: 'POST'
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            cameraType: cameraType
+          })
         });
         
         const data = await response.json();
@@ -19,7 +32,7 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
           setIsRecording(true);
           setImagePath(null);
         } else {
-          alert('Failed to start webcam: ' + data.message);
+          alert('Failed to start camera: ' + data.message);
         }
       } else {
         await fetch('http://localhost:5000/api/stop-camera', {
@@ -28,8 +41,8 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
         setIsRecording(false);
       }
     } catch (error) {
-      console.error('Error controlling webcam:', error);
-      alert('Error controlling webcam: ' + error.message);
+      console.error('Error controlling camera:', error);
+      alert('Error controlling camera: ' + error.message);
     }
   };
 

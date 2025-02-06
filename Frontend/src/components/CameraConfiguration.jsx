@@ -21,6 +21,26 @@ const CameraConfiguration = () => {
     '3840x2160'
   ];
 
+  // Load saved settings when component mounts
+  useEffect(() => {
+    const savedSettings = localStorage.getItem('cameraSettings');
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings);
+        setSelectedCamera(settings.camera || '');
+        setResolution(settings.resolution || '1920x1080');
+        
+        // Update dimensions based on saved resolution
+        const [width, height] = settings.resolution.split('x').map(Number);
+        setDimensions({ width, height });
+        
+        console.log('Loaded saved settings:', settings);
+      } catch (error) {
+        console.error('Error loading saved settings:', error);
+      }
+    }
+  }, []);
+
   // Update dimensions when resolution changes
   useEffect(() => {
     const [width, height] = resolution.split('x').map(Number);
