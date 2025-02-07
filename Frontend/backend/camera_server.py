@@ -511,5 +511,310 @@ def set_camera_resolution():
             'message': str(e)
         }), 500
 
+@app.route('/api/lowpass-filter', methods=['POST'])
+def apply_lowpass_filter():
+    try:
+        print("Low pass filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing low pass filter for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Apply Gaussian blur (low pass filter)
+        filtered_img = cv2.GaussianBlur(img, (25, 25), 0)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_lowpass{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving filtered image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, filtered_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Low pass filter completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during low pass filter: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/median-filter', methods=['POST'])
+def apply_median_filter():
+    try:
+        print("Median filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing median filter for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Apply Median blur
+        filtered_img = cv2.medianBlur(img, 15)  # kernel size 5x5
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_median{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving filtered image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, filtered_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Median filter completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during median filter: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/edge-detect', methods=['POST'])
+def apply_edge_detect():
+    try:
+        print("Edge detection filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing edge detection for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Convert to grayscale if image is color
+        if len(img.shape) == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img
+
+        # Apply Gaussian blur to reduce noise
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # Apply Canny edge detection
+        edges = cv2.Canny(blurred, 100, 200)  # Adjust thresholds as needed
+        
+        # Convert back to BGR for saving
+        edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_edges{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving edge detected image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, edges_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Edge detection completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during edge detection: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/edge-emphasis', methods=['POST'])
+def apply_edge_emphasis():
+    try:
+        print("Edge emphasis filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing edge emphasis for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Convert to float32 for processing
+        img_float = img.astype(np.float32) / 255.0
+
+        # Create sharpening kernel
+        kernel = np.array([[-1,-1,-1],
+                         [-1, 9,-1],
+                         [-1,-1,-1]], dtype=np.float32)
+
+        # Apply edge emphasis filter
+        emphasized = cv2.filter2D(img_float, -1, kernel)
+        
+        # Convert back to uint8
+        emphasized = np.clip(emphasized * 255, 0, 255).astype(np.uint8)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_emphasized{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving edge emphasized image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, emphasized, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Edge emphasis completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during edge emphasis: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/threshold', methods=['POST'])
+def apply_threshold():
+    try:
+        print("Threshold filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing threshold for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Convert to grayscale if image is color
+        if len(img.shape) == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img
+
+        # Apply Gaussian blur to reduce noise
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # Apply Otsu's thresholding
+        _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # Convert back to BGR for saving
+        thresh_bgr = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_threshold{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving thresholded image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, thresh_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Thresholding completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during thresholding: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, threaded=True) 

@@ -171,6 +171,201 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
     }
   };
 
+  const handleLowPassFilter = async () => {
+    try {
+        if (!imagePath) {
+            alert('No image to process');
+            return;
+        }
+
+        console.log('Sending low pass filter request to server...');
+        const response = await fetch('http://localhost:5000/api/lowpass-filter', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                imagePath: imagePath
+            })
+        });
+
+        console.log('Server response received:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Low pass filter response data:', data);
+
+        if (data.status === 'success') {
+            console.log('Setting new image path:', data.filepath);
+            setImagePath(data.filepath);
+        } else {
+            alert('Failed to apply filter: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error applying low pass filter:', error);
+        alert('Error applying low pass filter: ' + error.message);
+    }
+};
+
+  const handleMedianFilter = async () => {
+    try {
+        if (!imagePath) {
+            alert('No image to process');
+            return;
+        }
+
+        console.log('Sending median filter request to server...');
+        const response = await fetch('http://localhost:5000/api/median-filter', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                imagePath: imagePath
+            })
+        });
+
+        console.log('Server response received:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Median filter response data:', data);
+
+        if (data.status === 'success') {
+            console.log('Setting new image path:', data.filepath);
+            setImagePath(data.filepath);
+        } else {
+            alert('Failed to apply filter: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error applying median filter:', error);
+        alert('Error applying median filter: ' + error.message);
+    }
+};
+
+  const handleEdgeDetect = async () => {
+    try {
+        if (!imagePath) {
+            alert('No image to process');
+            return;
+        }
+
+        console.log('Sending edge detection request to server...');
+        const response = await fetch('http://localhost:5000/api/edge-detect', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                imagePath: imagePath
+            })
+        });
+
+        console.log('Server response received:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Edge detection response data:', data);
+
+        if (data.status === 'success') {
+            console.log('Setting new image path:', data.filepath);
+            setImagePath(data.filepath);
+        } else {
+            alert('Failed to apply edge detection: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error applying edge detection:', error);
+        alert('Error applying edge detection: ' + error.message);
+    }
+};
+
+  const handleEdgeEmphasis = async () => {
+    try {
+        if (!imagePath) {
+            alert('No image to process');
+            return;
+        }
+
+        console.log('Sending edge emphasis request to server...');
+        const response = await fetch('http://localhost:5000/api/edge-emphasis', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                imagePath: imagePath
+            })
+        });
+
+        console.log('Server response received:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Edge emphasis response data:', data);
+
+        if (data.status === 'success') {
+            console.log('Setting new image path:', data.filepath);
+            setImagePath(data.filepath);
+        } else {
+            alert('Failed to apply edge emphasis: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error applying edge emphasis:', error);
+        alert('Error applying edge emphasis: ' + error.message);
+    }
+};
+
+  const handleThreshold = async () => {
+    try {
+        if (!imagePath) {
+            alert('No image to process');
+            return;
+        }
+
+        console.log('Sending threshold request to server...');
+        const response = await fetch('http://localhost:5000/api/threshold', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                imagePath: imagePath
+            })
+        });
+
+        console.log('Server response received:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Threshold response data:', data);
+
+        if (data.status === 'success') {
+            console.log('Setting new image path:', data.filepath);
+            setImagePath(data.filepath);
+        } else {
+            alert('Failed to apply threshold: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error applying threshold:', error);
+        alert('Error applying threshold: ' + error.message);
+    }
+};
+
   const handleOptionClick = (option) => {
     if (option === "Calibrate") {
       setShowCalibrate(true);
@@ -184,6 +379,16 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
       handleFlip('horizontal');
     } else if (option === "Flip Vertical") {
       handleFlip('vertical');
+    } else if (option === "LowPass Filter") {
+      handleLowPassFilter();
+    } else if (option === "Median Filter") {
+      handleMedianFilter();
+    } else if (option === "Edge Detect Filter") {
+      handleEdgeDetect();
+    } else if (option === "Edge Emphasis") {
+      handleEdgeEmphasis();
+    } else if (option === "Thresholding") {
+      handleThreshold();
     }
     setActiveDropdown(null);
   };
