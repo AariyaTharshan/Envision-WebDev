@@ -40,6 +40,11 @@ async function createMainWindow() {
         autoHideMenuBar: true,
     });
 
+    // Set zoom level to 80% (0.8)
+    mainWindow.webContents.on('did-finish-load', () => {
+        mainWindow.webContents.setZoomFactor(0.85);
+    });
+
     // Load the production build
     const htmlPath = path.join(__dirname, '../dist/index.html');
     console.log('Loading:', htmlPath);
