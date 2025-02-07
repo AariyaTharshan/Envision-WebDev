@@ -12,6 +12,10 @@
     "electron-build": "vite build && cross-env NODE_ENV=production electron-builder"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^6.4.3",
+    "@mui/material": "^6.4.3",
     "@radix-ui/react-popover": "^1.1.2",
     "@radix-ui/react-select": "^2.1.2",
     "@reduxjs/toolkit": "^2.4.0",

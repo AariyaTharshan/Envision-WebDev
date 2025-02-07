@@ -18,7 +18,7 @@ const CameraConfiguration = () => {
     '1280x720',
     '1920x1080',
     '2560x1440',
-    '3840x2160'
+    '3072x2048'
   ];
 
   // Load saved settings when component mounts
@@ -47,6 +47,14 @@ const CameraConfiguration = () => {
     setDimensions({ width, height });
   }, [resolution]);
 
+  // Add this useEffect after your other useEffects
+  useEffect(() => {
+    if (selectedCamera === 'HIKERBOT') {
+        // Update camera resolution when HIKERBOT is selected
+        handleResolutionChange(resolution);
+    }
+  }, [selectedCamera]); // Only run when camera selection changes
+
   const handleSave = async () => {
     if (!selectedCamera) {
       setSaveStatus('Please select a camera');
@@ -70,6 +78,44 @@ const CameraConfiguration = () => {
       console.error('Error saving settings:', error);
       setSaveStatus('Error saving settings');
       setTimeout(() => setSaveStatus(''), 3000);
+    }
+  };
+
+  const handleResolutionChange = async (newResolution) => {
+    try {
+        // Only send resolution update if HIKERBOT camera is selected
+        if (selectedCamera === 'HIKERBOT') {
+            const response = await fetch('http://localhost:5000/api/set-camera-resolution', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    resolution: newResolution
+                }),
+            });
+            
+            const data = await response.json();
+            if (data.status === 'success') {
+                console.log('Camera resolution updated successfully');
+                setResolution(newResolution);
+                const [width, height] = newResolution.split('x').map(Number);
+                setDimensions({ width, height });
+            } else {
+                console.error('Failed to update camera resolution:', data.message);
+                setSaveStatus('Failed to update camera resolution');
+                setTimeout(() => setSaveStatus(''), 3000);
+            }
+        } else {
+            // For other cameras, just update the UI
+            setResolution(newResolution);
+            const [width, height] = newResolution.split('x').map(Number);
+            setDimensions({ width, height });
+        }
+    } catch (error) {
+        console.error('Error updating resolution:', error);
+        setSaveStatus('Error updating resolution');
+        setTimeout(() => setSaveStatus(''), 3000);
     }
   };
 
@@ -120,7 +166,7 @@ const CameraConfiguration = () => {
           </label>
           <select
             value={resolution}
-            onChange={(e) => setResolution(e.target.value)}
+            onChange={(e) => handleResolutionChange(e.target.value)}
             className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm 
               focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500
               bg-white text-sm"

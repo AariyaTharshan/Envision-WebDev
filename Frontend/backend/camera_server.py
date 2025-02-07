@@ -27,6 +27,7 @@ class WebcamManager:
         self.default_save_path = 'C:\\Users\\Public\\MicroScope_Images'
         self.current_camera_type = None
         self.hikrobot_camera = None  # For HIKROBOT camera instance
+        self.current_resolution = None
 
     def start_camera(self, camera_type=None):
         try:
@@ -99,15 +100,20 @@ class WebcamManager:
         while self.is_recording:
             try:
                 if self.current_camera_type == 'HIKERBOT':
-                    # Get HIKROBOT frame
                     stOutFrame = MV_FRAME_OUT()
                     ret = self.camera.MV_CC_GetImageBuffer(stOutFrame, 1000)
                     if ret == 0:
-                        # Convert frame to OpenCV format
+                        # Use current resolution if set
+                        if self.current_resolution:
+                            width, height = self.current_resolution
+                        else:
+                            width = stOutFrame.stFrameInfo.nWidth
+                            height = stOutFrame.stFrameInfo.nHeight
+
                         pData = (c_ubyte * stOutFrame.stFrameInfo.nFrameLen)()
                         cdll.msvcrt.memcpy(byref(pData), stOutFrame.pBufAddr, stOutFrame.stFrameInfo.nFrameLen)
                         data = np.frombuffer(pData, count=int(stOutFrame.stFrameInfo.nFrameLen), dtype=np.uint8)
-                        frame = data.reshape((stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nWidth, -1))
+                        frame = data.reshape((height, width, -1))
                         
                         # Release buffer
                         self.camera.MV_CC_FreeImageBuffer(stOutFrame)
@@ -176,6 +182,36 @@ class WebcamManager:
                 print(f"Error taking snapshot: {str(e)}")
                 return None
         return None
+
+    def set_resolution(self, width, height):
+        if self.current_camera_type == 'HIKERBOT' and self.camera:
+            try:
+                # Stop grabbing before changing settings
+                self.camera.MV_CC_StopGrabbing()
+                
+                # Set resolution
+                ret = self.camera.MV_CC_SetIntValue("Width", width)
+                if ret != 0:
+                    print("Failed to set width")
+                    return False
+
+                ret = self.camera.MV_CC_SetIntValue("Height", height)
+                if ret != 0:
+                    print("Failed to set height")
+                    return False
+
+                # Resume grabbing
+                ret = self.camera.MV_CC_StartGrabbing()
+                if ret != 0:
+                    print("Failed to restart grabbing")
+                    return False
+
+                self.current_resolution = (width, height)
+                return True
+            except Exception as e:
+                print(f"Error setting resolution: {str(e)}")
+                return False
+        return False
 
 webcam = WebcamManager()
 
@@ -442,6 +478,34 @@ def flip_image():
     except Exception as e:
         print(f"Error during flip: {str(e)}")
         print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/set-camera-resolution', methods=['POST'])
+def set_camera_resolution():
+    try:
+        data = request.get_json()
+        resolution = data.get('resolution')  # This will be like "1920x1080"
+        
+        if not resolution or 'x' not in resolution:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid resolution format'
+            }), 400
+
+        width, height = map(int, resolution.split('x'))
+        
+        if webcam.set_resolution(width, height):
+            return jsonify({'status': 'success'})
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Camera not initialized or not HIKERBOT'
+            }), 400
+    except Exception as e:
+        print(f"Error setting camera resolution: {str(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e)
