@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-const CameraCalibrate = () => {
+const CameraCalibrate = ({ imagePath }) => {
   const [image, setImage] = useState(null);
   const [scale, setScale] = useState({ x: 0, y: 0 }); // pixels per micron
   const [calibrationLine, setCalibrationLine] = useState({ start: null, end: null });
@@ -33,34 +33,6 @@ const CameraCalibrate = () => {
     setMeasurementValue('');
     setRealScale({ x: 0, y: 0 });
     setCurrentMeasurement(null);
-  };
-
-  // Modified handleImageUpload
-  const handleImageUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      // Reset all calibration data when new image is uploaded
-      resetCalibration();
-      
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          // Store original dimensions
-          setOriginalDimensions({ width: img.width, height: img.height });
-          
-          // Calculate scale factor
-          const newScaleFactor = DISPLAY_WIDTH / img.width;
-          setScaleFactor(newScaleFactor);
-          
-          setImage(img);
-          imageRef.current = img;
-          initializeCanvas(img);
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
   };
 
   // Modified initializeCanvas
@@ -467,6 +439,25 @@ const CameraCalibrate = () => {
     }
   };
 
+  useEffect(() => {
+    if (imagePath) {
+      const img = new Image();
+      img.onload = () => {
+        // Store original dimensions
+        setOriginalDimensions({ width: img.width, height: img.height });
+        
+        // Calculate scale factor
+        const newScaleFactor = DISPLAY_WIDTH / img.width;
+        setScaleFactor(newScaleFactor);
+        
+        setImage(img);
+        imageRef.current = img;
+        initializeCanvas(img);
+      };
+      img.src = `http://localhost:5000/api/get-image?path=${encodeURIComponent(imagePath)}`;
+    }
+  }, [imagePath]); // Update when imagePath changes
+
   return (
     <div className="max-w-6xl mx-auto p-8 bg-white rounded-xl shadow-2xl">
       {/* Header Section */}
@@ -476,28 +467,11 @@ const CameraCalibrate = () => {
       </div>
 
       {/* Main Control Panel */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {/* Image Upload Section */}
-        <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">1. Upload Image</h3>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="block w-full text-sm text-gray-500
-              file:mr-4 file:py-3 file:px-4
-              file:rounded-lg file:border-0
-              file:text-sm file:font-semibold
-              file:bg-blue-50 file:text-blue-700
-              hover:file:bg-blue-100
-              transition-all duration-200"
-          />
-        </div>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {/* Unit Selection Section */}
         <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">2. Select Unit</h3>
-          <select
+          <h3 className="text-lg font-semibold mb-4 text-gray-700">1. Select Unit</h3>
+          <select 
             value={unit}
             onChange={(e) => handleUnitChange(e.target.value)}
             className="w-full px-4 py-3 border rounded-lg bg-white
@@ -512,7 +486,7 @@ const CameraCalibrate = () => {
 
         {/* Measurement Input Section */}
         <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">3. Enter Measurement</h3>
+          <h3 className="text-lg font-semibold mb-4 text-gray-700">2. Enter Measurement</h3>
           <div className="flex space-x-2">
             <input
               type="number"
@@ -530,64 +504,6 @@ const CameraCalibrate = () => {
             </span>
           </div>
         </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex flex-wrap gap-4 mb-8">
-        <button
-          onClick={handleMeasurementSubmit}
-          disabled={!calibrationLine.start || !measurementValue || !canDrawLine || lines.length > 0}
-          className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium
-            transition-all duration-200 ${
-            !calibrationLine.start || !measurementValue || !canDrawLine || lines.length > 0
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
-          }`}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <span>Calibrate</span>
-        </button>
-
-        <button
-          onClick={resetCalibration}
-          disabled={!lines.length && !calibrationLine.start}
-          className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium
-            transition-all duration-200 ${
-            !lines.length && !calibrationLine.start
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-yellow-500 text-white hover:bg-yellow-600 shadow-lg hover:shadow-xl'
-          }`}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          <span>New Calibration</span>
-        </button>
-
-        <button
-          onClick={saveImage}
-          disabled={!lines.length}
-          className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium
-            transition-all duration-200 ${
-            !lines.length
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-green-600 text-white hover:bg-green-700 shadow-lg hover:shadow-xl'
-          }`}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          <span>Save Image</span>
-        </button>
-
-        <button
-          onClick={handleSaveCalibration}
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-        >
-          Save Calibration
-        </button>
       </div>
 
       {/* Canvas Section */}
@@ -610,7 +526,7 @@ const CameraCalibrate = () => {
               <div className="absolute top-4 right-4">
                 {canDrawLine ? (
                   <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800 shadow-sm">
-                    {calibrationLine.start ? '✏️ Enter Measurement' : '✏️ Ready to Draw'}
+                    {calibrationLine.start ? '✏️ Enter Measurement' : '✏️ Draw Line'}
                   </span>
                 ) : (
                   <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-green-100 text-green-800 shadow-sm">
@@ -688,7 +604,6 @@ const CameraCalibrate = () => {
         <h3 className="text-lg font-semibold mb-4 text-blue-900">Quick Guide</h3>
         <ol className="space-y-3">
           {[
-            "Upload your microscope image",
             "Select your preferred measurement unit",
             "Draw a calibration line by clicking and dragging",
             "Enter the known measurement value",

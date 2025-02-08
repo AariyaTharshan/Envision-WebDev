@@ -856,7 +856,7 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
                   </svg>
                 </button>
               </div>
-              <CameraCalibrate />
+              <CameraCalibrate imagePath={imagePath} />
             </div>
           </div>
         </div>
