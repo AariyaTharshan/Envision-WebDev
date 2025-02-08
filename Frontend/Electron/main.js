@@ -78,7 +78,7 @@ app.on('before-quit', () => {
     }
 });
 
-// Handle folder picker dialog
+// Add IPC handler for folder picker
 ipcMain.handle('dialog:openFolder', async () => {
     const result = await dialog.showOpenDialog({
         properties: ['openDirectory']

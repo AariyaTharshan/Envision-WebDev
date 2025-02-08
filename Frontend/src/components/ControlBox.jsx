@@ -105,6 +105,34 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
     }
   };
 
+  const handleFolderPick = async () => {
+    try {
+      // Call electron's folder picker through window.electron
+      const folderPath = await window.electron.openFolder();
+      if (folderPath) {
+        setLocation(folderPath);
+        // Update server with new save path
+        const response = await fetch('http://localhost:5000/api/set-save-path', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            path: folderPath
+          })
+        });
+
+        const data = await response.json();
+        if (!data.status === 'success') {
+          alert('Failed to update save location');
+        }
+      }
+    } catch (error) {
+      console.error('Error picking folder:', error);
+      alert('Error selecting folder: ' + error.message);
+    }
+  };
+
   return (
     <div className="fixed bottom-6 left-6 bg-white rounded-lg shadow-xl p-4 w-72 border border-gray-200">
       {/* Control Buttons Row */}
@@ -155,6 +183,30 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
 
       {/* Settings Section */}
       <div className="space-y-3">
+        {/* Save Location Picker */}
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600 w-24">Save Path:</label>
+          <div className="flex-1 flex gap-1">
+            <input
+              type="text"
+              value={location}
+              readOnly
+              className="flex-1 p-1 border rounded text-sm bg-gray-50"
+              title={location}
+            />
+            <button
+              onClick={handleFolderPick}
+              className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+              title="Pick Folder"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
         {/* Magnification Compact Dropdown */}
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600 w-24">Magnification:</label>

@@ -25,10 +25,83 @@ class WebcamManager:
         self.frame = None
         self.thread = None
         self.last_frame = None
+        self.user_save_path = None
         self.default_save_path = 'C:\\Users\\Public\\MicroScope_Images'
+        self.temp_dir = None
         self.current_camera_type = None
-        self.hikrobot_camera = None  # For HIKROBOT camera instance
+        self.hikrobot_camera = None
         self.current_resolution = None
+        
+        # Initialize with default path
+        self.set_save_path(self.default_save_path)
+
+    def set_save_path(self, path=None):
+        """Set save path and create necessary directories"""
+        try:
+            if path:
+                self.user_save_path = path
+            else:
+                self.user_save_path = self.default_save_path
+                
+            # Create main directory
+            os.makedirs(self.user_save_path, exist_ok=True)
+            
+            # Update and create temp directory
+            self.temp_dir = os.path.join(self.user_save_path, 'temp')
+            # Clear any existing temp files
+            if os.path.exists(self.temp_dir):
+                self.clear_temp_directory()
+            os.makedirs(self.temp_dir, exist_ok=True)
+            
+            return True
+        except Exception as e:
+            print(f"Error setting save path: {str(e)}")
+            return False
+
+    def get_current_save_path(self):
+        """Get current save path"""
+        return self.user_save_path or self.default_save_path
+
+    def get_temp_path(self, original_path, suffix):
+        """Generate a path in temp directory maintaining original filename"""
+        filename = os.path.basename(original_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_{suffix}{ext}"
+        return os.path.join(self.temp_dir, new_filename)
+
+    def clear_temp_directory(self):
+        """Clear all files in temp directory"""
+        try:
+            for file in os.listdir(self.temp_dir):
+                file_path = os.path.join(self.temp_dir, file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {str(e)}")
+        except Exception as e:
+            print(f"Error clearing temp directory: {str(e)}")
+
+    def save_to_main_directory(self, temp_path):
+        """Save temp file to main directory and clear temp"""
+        try:
+            if not temp_path or not os.path.exists(temp_path):
+                return None
+                
+            filename = os.path.basename(temp_path)
+            new_path = os.path.join(self.get_current_save_path(), filename)
+            
+            img = cv2.imread(temp_path)
+            cv2.imwrite(new_path, img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+            
+            # Clear temp directory after successful save
+            self.clear_temp_directory()
+            
+            return new_path
+            
+        except Exception as e:
+            print(f"Error saving to main directory: {str(e)}")
+            return None
 
     def start_camera(self, camera_type=None):
         try:
@@ -179,21 +252,18 @@ class WebcamManager:
     def take_snapshot(self, save_path=None):
         if self.last_frame:
             try:
-                # Use provided save path or default
-                if not save_path:
-                    save_path = self.default_save_path
-                
-                # Create directory if it doesn't exist
-                os.makedirs(save_path, exist_ok=True)
+                # Always save snapshots to temp directory first
+                if not os.path.exists(self.temp_dir):
+                    os.makedirs(self.temp_dir, exist_ok=True)
                 
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"microscope_{timestamp}.jpg"
-                filepath = os.path.join(save_path, filename)
+                filepath = os.path.join(self.temp_dir, filename)
                 
                 with open(filepath, 'wb') as f:
                     f.write(self.last_frame)
                 
-                print(f"Snapshot saved to: {filepath}")
+                print(f"Snapshot saved to temp: {filepath}")
                 return filepath
             except Exception as e:
                 print(f"Error taking snapshot: {str(e)}")
@@ -341,7 +411,7 @@ def import_image():
         if file:
             try:
                 filename = secure_filename(file.filename)
-                save_dir = webcam.default_save_path  # Use WebcamManager's default path
+                save_dir = webcam.get_current_save_path()  # Use WebcamManager's default path
                 print(f"Using save directory: {save_dir}")
                 
                 os.makedirs(save_dir, exist_ok=True)
@@ -400,23 +470,16 @@ def import_image():
 @app.route('/api/rotate-image', methods=['POST'])
 def rotate_image():
     try:
-        print("Rotation endpoint called")
         data = request.get_json()
-        print("Received data:", data)
-        
         image_path = data.get('imagePath')
         direction = data.get('direction', 'clockwise')
         
-        print(f"Processing rotation: {direction} for image: {image_path}")
-        
         if not image_path or not os.path.exists(image_path):
-            print(f"Image not found at path: {image_path}")
             return jsonify({
                 'status': 'error',
                 'message': 'Image not found'
             }), 404
 
-        # Read image with OpenCV
         img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
         if img is None:
             return jsonify({
@@ -424,32 +487,21 @@ def rotate_image():
                 'message': 'Failed to read image'
             }), 500
 
-        # Simple 90-degree rotation without any scaling or interpolation
         if direction == 'clockwise':
-            rotated_img = np.rot90(img, k=-1)  # -1 for clockwise
+            rotated_img = np.rot90(img, k=-1)
         else:
-            rotated_img = np.rot90(img, k=1)   # 1 for counterclockwise
+            rotated_img = np.rot90(img, k=1)
 
-        # Save with new filename
-        directory = os.path.dirname(image_path)
-        filename = os.path.basename(image_path)
-        name, ext = os.path.splitext(filename)
-        new_filename = f"{name}_rotated{ext}"
-        new_path = os.path.join(directory, new_filename)
+        # Save to temp directory
+        temp_path = webcam.get_temp_path(image_path, 'rotated')
+        cv2.imwrite(temp_path, rotated_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
         
-        print(f"Saving rotated image to: {new_path}")
-        # Save with original quality
-        cv2.imwrite(new_path, rotated_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-        
-        print("Rotation completed successfully")
         return jsonify({
             'status': 'success',
-            'filepath': new_path
+            'filepath': temp_path
         })
         
     except Exception as e:
-        print(f"Error during rotation: {str(e)}")
-        print(f"Error type: {type(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e)
@@ -1300,6 +1352,64 @@ def porosity_prep():
         result = prepare_image(image_path, prep_option)
         return jsonify(result)
 
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/save-to-main', methods=['POST'])
+def save_to_main():
+    try:
+        data = request.get_json()
+        temp_path = data.get('imagePath')
+        
+        if not temp_path:
+            return jsonify({
+                'status': 'error',
+                'message': 'No image path provided'
+            }), 400
+
+        saved_path = webcam.save_to_main_directory(temp_path)
+        if saved_path:
+            return jsonify({
+                'status': 'success',
+                'filepath': saved_path,
+                'message': 'Image saved and temp files cleared'
+            })
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to save image'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/set-save-path', methods=['POST'])
+def set_save_path():
+    try:
+        data = request.get_json()
+        new_path = data.get('path')
+        
+        if new_path:
+            webcam.user_save_path = new_path
+            # Create main directory
+            os.makedirs(new_path, exist_ok=True)
+            # Update temp directory
+            webcam.temp_dir = os.path.join(new_path, 'temp')
+            os.makedirs(webcam.temp_dir, exist_ok=True)
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Save path updated successfully',
+                'path': new_path
+            })
+        return jsonify({
+            'status': 'error',
+            'message': 'No path provided'
+        }), 400
     except Exception as e:
         return jsonify({
             'status': 'error',

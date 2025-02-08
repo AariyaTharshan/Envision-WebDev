@@ -686,6 +686,40 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
     }
 };
 
+  const handleSaveImage = async () => {
+    try {
+        if (!imagePath) {
+            alert('No image to save');
+            return;
+        }
+
+        const response = await fetch('http://localhost:5000/api/save-to-main', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                imagePath: imagePath
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.status === 'success') {
+            alert('Image saved successfully');
+            setImagePath(data.filepath);
+        } else {
+            alert('Failed to save image: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error saving image:', error);
+        alert('Error saving image: ' + error.message);
+    }
+};
+
   const handleOptionClick = (option) => {
     if (option === "Calibrate") {
       setShowCalibrate(true);
@@ -723,6 +757,8 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
       handleImageStitch();
     } else if (option === "Porosity") {
       setShowPorosity(true);
+    } else if (option === "Save Image") {
+      handleSaveImage();
     }
     setActiveDropdown(null);
   };
