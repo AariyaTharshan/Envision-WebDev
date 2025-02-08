@@ -13,6 +13,12 @@ const CameraCalibrate = () => {
   const [realScale, setRealScale] = useState({ x: 0, y: 0 }); // pixels to unit conversion
   const [currentMeasurement, setCurrentMeasurement] = useState(null);
   const [canDrawLine, setCanDrawLine] = useState(true);
+  const [calibrationData, setCalibrationData] = useState({
+    pixelDistance: 0,
+    actualDistance: 0,
+    unit: 'mm',
+    calibrationFactor: 0
+  });
   
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
@@ -422,6 +428,45 @@ const CameraCalibrate = () => {
     );
   };
 
+  const handleSaveCalibration = async () => {
+    try {
+      if (!calibrationData.calibrationFactor) {
+        alert('Please perform calibration first');
+        return;
+      }
+
+      console.log('Sending calibration data to server...');
+      const response = await fetch('http://localhost:5000/api/save-calibration', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          calibrationData: {
+            ...calibrationData,
+            timestamp: new Date().toISOString()
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Save calibration response:', data);
+
+      if (data.status === 'success') {
+        alert('Calibration data saved successfully');
+      } else {
+        alert('Failed to save calibration: ' + data.message);
+      }
+    } catch (error) {
+      console.error('Error saving calibration:', error);
+      alert('Error saving calibration: ' + error.message);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-8 bg-white rounded-xl shadow-2xl">
       {/* Header Section */}
@@ -535,6 +580,13 @@ const CameraCalibrate = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           <span>Save Image</span>
+        </button>
+
+        <button
+          onClick={handleSaveCalibration}
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+        >
+          Save Calibration
         </button>
       </div>
 

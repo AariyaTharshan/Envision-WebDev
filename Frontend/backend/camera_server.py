@@ -10,12 +10,14 @@ from datetime import datetime
 from werkzeug.utils import secure_filename
 from PIL import Image
 import numpy as np
+import json
+from porosity_analysis import analyze_porosity, prepare_image
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'MvImport')))
 from MvCameraControl_class import *
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000", "http://localhost:5173"], "methods": ["GET", "POST", "OPTIONS"], "headers": ["Content-Type"]}})
 
 class WebcamManager:
     def __init__(self):
@@ -750,6 +752,421 @@ def apply_edge_emphasis():
             'message': str(e)
         }), 500
 
+@app.route('/api/grayscale', methods=['POST'])
+def apply_grayscale():
+    try:
+        print("Grayscale filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing grayscale for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Convert to grayscale
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Convert back to BGR for saving
+        gray_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_gray{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving grayscale image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, gray_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Grayscale completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during grayscale: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/invert', methods=['POST'])
+def apply_invert():
+    try:
+        print("Invert filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing invert for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Invert the image
+        inverted = cv2.bitwise_not(img)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_inverted{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving inverted image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, inverted, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Invert completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during invert: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/thin', methods=['POST'])
+def apply_thin():
+    try:
+        print("Thin filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing thin for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Convert to grayscale if image is color
+        if len(img.shape) == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img
+
+        # Apply Otsu's thresholding
+        _, thresholded = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        # Apply erosion and dilation for thinning
+        kernel = np.ones((3, 3), np.uint8)
+        eroded = cv2.erode(thresholded, kernel, iterations=1)
+        dilated = cv2.dilate(eroded, kernel, iterations=1)
+
+        # Convert back to BGR for saving
+        thinned_bgr = cv2.cvtColor(dilated, cv2.COLOR_GRAY2BGR)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_thinned{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving thinned image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, thinned_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Thin completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during thin: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/image-splice', methods=['POST'])
+def apply_image_splice():
+    try:
+        print("Image splice endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_paths = data.get('imagePaths', [])  # Get array of image paths
+        direction = data.get('direction', 'horizontal')
+        
+        print(f"Processing image splice for images: {image_paths}")
+        
+        if not image_paths or len(image_paths) < 2:
+            return jsonify({
+                'status': 'error',
+                'message': 'Need at least 2 images to splice'
+            }), 400
+
+        # Read all images
+        images = []
+        for path in image_paths:
+            if not os.path.exists(path):
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Image not found: {path}'
+                }), 404
+
+            img = cv2.imread(path)
+            if img is None:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to read image: {path}'
+                }), 500
+            images.append(img)
+
+        # Get dimensions of first image
+        h1, w1 = images[0].shape[:2]
+        
+        # Resize all images to match the first image's dimensions
+        resized_images = [images[0]]
+        for img in images[1:]:
+            resized = cv2.resize(img, (w1, h1))
+            resized_images.append(resized)
+        
+        # Create a panorama by concatenating images
+        if direction == 'horizontal':
+            result = np.hstack(resized_images)
+        else:
+            result = np.vstack(resized_images)
+
+        # Save with new filename
+        directory = os.path.dirname(image_paths[0])
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        new_filename = f"spliced_{timestamp}.jpg"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving spliced image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, result, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Image splice completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during image splice: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/image-sharpen', methods=['POST'])
+def apply_image_sharpen():
+    try:
+        print("Image sharpen endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing image sharpen for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Apply sharpening filter
+        kernel = np.array([[-1,-1,-1],
+                         [-1, 9,-1],
+                         [-1,-1,-1]], dtype=np.float32)
+        sharpened = cv2.filter2D(img, -1, kernel)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_sharpened{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving sharpened image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, sharpened, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Image sharpen completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during image sharpen: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/image-stitch', methods=['POST'])
+def apply_image_stitch():
+    try:
+        print("Image stitch endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_paths = data.get('imagePaths', [])
+        
+        print(f"Processing image stitch for images: {image_paths}")
+        
+        if not image_paths or len(image_paths) < 2:
+            return jsonify({
+                'status': 'error',
+                'message': 'At least two images are required for stitching'
+            }), 400
+
+        # Read images with OpenCV
+        images = []
+        for img_path in image_paths:
+            img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+            if img is None:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to read image: {img_path}'
+                }), 500
+            images.append(img)
+
+        # Resize all images to match the first image's dimensions
+        resized_images = []
+        for img in images:
+            resized_img = cv2.resize(img, (images[0].shape[1], images[0].shape[0]))
+            resized_images.append(resized_img)
+
+        # Create a panorama by blending overlapping regions
+        stitched_img = resized_images[0]
+        for i in range(1, len(resized_images)):
+            stitched_img = cv2.addWeighted(stitched_img, 0.5, resized_images[i], 0.5, 0)
+
+        # Save with new filename
+        directory = os.path.dirname(image_paths[0])
+        filename = os.path.basename(image_paths[0])
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_stitched{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving stitched image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, stitched_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Image stitch completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during image stitch: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/save-calibration', methods=['POST'])
+def save_calibration():
+    try:
+        print("Save calibration endpoint called")
+        data = request.get_json()
+        print("Received calibration data:", data)
+        
+        calibration_data = data.get('calibrationData')
+        if not calibration_data:
+            return jsonify({
+                'status': 'error',
+                'message': 'No calibration data provided'
+            }), 400
+
+        # Create calibration directory if it doesn't exist
+        calibration_dir = os.path.join('calibration_data')
+        os.makedirs(calibration_dir, exist_ok=True)
+
+        # Save calibration data with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"calibration_{timestamp}.json"
+        filepath = os.path.join(calibration_dir, filename)
+
+        with open(filepath, 'w') as f:
+            json.dump(calibration_data, f, indent=4)
+        
+        print(f"Calibration data saved to: {filepath}")
+        return jsonify({
+            'status': 'success',
+            'message': 'Calibration data saved successfully',
+            'filepath': filepath
+        })
+        
+    except Exception as e:
+        print(f"Error saving calibration data: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 @app.route('/api/threshold', methods=['POST'])
 def apply_threshold():
     try:
@@ -811,6 +1228,51 @@ def apply_threshold():
     except Exception as e:
         print(f"Error during thresholding: {str(e)}")
         print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/porosity/analyze', methods=['POST'])
+def porosity_analysis():
+    try:
+        data = request.get_json()
+        image_path = data.get('imagePath')
+        unit = data.get('unit', 'microns')
+        features = data.get('features', 'dark')
+        
+        if not image_path or not os.path.exists(image_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        result = analyze_porosity(image_path, unit, features)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/porosity/prep', methods=['POST'])
+def porosity_prep():
+    try:
+        data = request.get_json()
+        image_path = data.get('imagePath')
+        prep_option = data.get('prepOption')
+        
+        if not image_path or not os.path.exists(image_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        result = prepare_image(image_path, prep_option)
+        return jsonify(result)
+
+    except Exception as e:
         return jsonify({
             'status': 'error',
             'message': str(e)

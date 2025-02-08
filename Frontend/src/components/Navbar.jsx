@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import CameraCalibrate from "./CameraCalibrate";
 import CameraConfiguration from "./CameraConfiguration";
+import Porosity from './Porosity';
 
 const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [showCalibrate, setShowCalibrate] = useState(false);
   const [showCameraConfig, setShowCameraConfig] = useState(false);
+  const [showPorosity, setShowPorosity] = useState(false);
   const dropdownRefs = useRef([]);
 
   const menuItems = [
@@ -41,7 +43,6 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
         "Gray Scale",
         "Invert",
         "Thin",
-        "Build Macro",
         "Image Splice",
         "Image Sharpening",
         "Image Stitch",
@@ -366,6 +367,325 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
     }
 };
 
+  const handleGrayscale = async () => {
+    try {
+        if (!imagePath) {
+            alert('No image to process');
+            return;
+        }
+
+        console.log('Sending grayscale request to server...');
+        const response = await fetch('http://localhost:5000/api/grayscale', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                imagePath: imagePath
+            })
+        });
+
+        console.log('Server response received:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Grayscale response data:', data);
+
+        if (data.status === 'success') {
+            console.log('Setting new image path:', data.filepath);
+            setImagePath(data.filepath);
+        } else {
+            alert('Failed to apply grayscale: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error applying grayscale:', error);
+        alert('Error applying grayscale: ' + error.message);
+    }
+};
+
+  const handleInvert = async () => {
+    try {
+        if (!imagePath) {
+            alert('No image to process');
+            return;
+        }
+
+        console.log('Sending invert request to server...');
+        const response = await fetch('http://localhost:5000/api/invert', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                imagePath: imagePath
+            })
+        });
+
+        console.log('Server response received:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Invert response data:', data);
+
+        if (data.status === 'success') {
+            console.log('Setting new image path:', data.filepath);
+            setImagePath(data.filepath);
+        } else {
+            alert('Failed to apply invert: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error applying invert:', error);
+        alert('Error applying invert: ' + error.message);
+    }
+};
+
+  const handleThin = async () => {
+    try {
+        if (!imagePath) {
+            alert('No image to process');
+            return;
+        }
+
+        console.log('Sending thin request to server...');
+        const response = await fetch('http://localhost:5000/api/thin', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                imagePath: imagePath
+            })
+        });
+
+        console.log('Server response received:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Thin response data:', data);
+
+        if (data.status === 'success') {
+            console.log('Setting new image path:', data.filepath);
+            setImagePath(data.filepath);
+        } else {
+            alert('Failed to apply thinning: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error applying thinning:', error);
+        alert('Error applying thinning: ' + error.message);
+    }
+};
+
+  const handleImageSplice = async () => {
+    try {
+        if (!imagePath) {
+            alert('Please select a base image first');
+            return;
+        }
+
+        // Create input element for file selection
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+        input.accept = 'image/*';
+        
+        input.onchange = async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            // Upload additional images first
+            const additionalPaths = [];
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                    const uploadResponse = await fetch('http://localhost:5000/api/import-image', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const uploadData = await uploadResponse.json();
+                    if (uploadData.status === 'success') {
+                        additionalPaths.push(uploadData.filepath);
+                    }
+                } catch (error) {
+                    console.error('Error uploading additional image:', error);
+                }
+            }
+
+            if (additionalPaths.length === 0) {
+                alert('Failed to upload additional images');
+                return;
+            }
+
+            // Now perform the splice
+            const allPaths = [imagePath, ...additionalPaths];
+            
+            console.log('Sending image splice request to server...');
+            const response = await fetch('http://localhost:5000/api/image-splice', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    imagePaths: allPaths,
+                    direction: 'horizontal'  // or let user choose
+                })
+            });
+
+            console.log('Server response received:', response.status);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('Image splice response data:', data);
+
+            if (data.status === 'success') {
+                console.log('Setting new image path:', data.filepath);
+                setImagePath(data.filepath);
+            } else {
+                alert('Failed to splice images: ' + data.message);
+            }
+        };
+
+        input.click();
+    } catch (error) {
+        console.error('Error during image splice:', error);
+        alert('Error splicing images: ' + error.message);
+    }
+};
+
+  const handleImageSharpen = async () => {
+    try {
+        if (!imagePath) {
+            alert('No image to process');
+            return;
+        }
+
+        console.log('Sending image sharpen request to server...');
+        const response = await fetch('http://localhost:5000/api/image-sharpen', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                imagePath: imagePath
+            })
+        });
+
+        console.log('Server response received:', response.status);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Image sharpen response data:', data);
+
+        if (data.status === 'success') {
+            console.log('Setting new image path:', data.filepath);
+            setImagePath(data.filepath);
+        } else {
+            alert('Failed to sharpen image: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error sharpening image:', error);
+        alert('Error sharpening image: ' + error.message);
+    }
+};
+
+  const handleImageStitch = async () => {
+    try {
+        if (!imagePath) {
+            alert('Please select a base image first');
+            return;
+        }
+
+        // Create input element for file selection
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+        input.accept = 'image/*';
+        
+        input.onchange = async (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            // Upload additional images first
+            const additionalPaths = [];
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                    const uploadResponse = await fetch('http://localhost:5000/api/import-image', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const uploadData = await uploadResponse.json();
+                    if (uploadData.status === 'success') {
+                        additionalPaths.push(uploadData.filepath);
+                    }
+                } catch (error) {
+                    console.error('Error uploading additional image:', error);
+                }
+            }
+
+            if (additionalPaths.length === 0) {
+                alert('Failed to upload additional images');
+                return;
+            }
+
+            // Now perform the stitching
+            const allPaths = [imagePath, ...additionalPaths];
+            
+            console.log('Sending image stitch request to server...');
+            const response = await fetch('http://localhost:5000/api/image-stitch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    imagePaths: allPaths
+                })
+            });
+
+            console.log('Server response received:', response.status);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('Image stitch response data:', data);
+
+            if (data.status === 'success') {
+                console.log('Setting new image path:', data.filepath);
+                setImagePath(data.filepath);
+            } else {
+                alert('Failed to stitch images: ' + data.message);
+            }
+        };
+
+        input.click();
+    } catch (error) {
+        console.error('Error during image stitching:', error);
+        alert('Error stitching images: ' + error.message);
+    }
+};
+
   const handleOptionClick = (option) => {
     if (option === "Calibrate") {
       setShowCalibrate(true);
@@ -389,6 +709,20 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
       handleEdgeEmphasis();
     } else if (option === "Thresholding") {
       handleThreshold();
+    } else if (option === "Gray Scale") {
+      handleGrayscale();
+    } else if (option === "Invert") {
+      handleInvert();
+    } else if (option === "Thin") {
+      handleThin();
+    } else if (option === "Image Splice") {
+      handleImageSplice();
+    } else if (option === "Image Sharpening") {
+      handleImageSharpen();
+    } else if (option === "Image Stitch") {
+      handleImageStitch();
+    } else if (option === "Porosity") {
+      setShowPorosity(true);
     }
     setActiveDropdown(null);
   };
@@ -525,6 +859,25 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
               <CameraCalibrate />
             </div>
           </div>
+        </div>
+      )}
+
+      {showPorosity && (
+        <div className="fixed right-0 top-0 h-full w-[600px] bg-white shadow-lg z-40 overflow-y-auto">
+            <div className="relative">
+                <div className="absolute left-0 top-4 pl-4">
+                    <button
+                        onClick={() => setShowPorosity(false)}
+                        className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                    >
+                        <span className="sr-only">Close</span>
+                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <Porosity imagePath={imagePath} />
+            </div>
         </div>
       )}
     </>
