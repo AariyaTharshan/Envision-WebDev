@@ -11,8 +11,7 @@ from werkzeug.utils import secure_filename
 from PIL import Image
 import numpy as np
 import json
-from porosity_analysis import analyze_porosity, prepare_im
-
+from porosity_analysis import analyze_porosity, prepare_image
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'MvImport')))
 from MvCameraControl_class import *
 
@@ -105,17 +104,33 @@ class WebcamManager:
                     stOutFrame = MV_FRAME_OUT()
                     ret = self.camera.MV_CC_GetImageBuffer(stOutFrame, 1000)
                     if ret == 0:
-                        # Use current resolution if set
-                        if self.current_resolution:
-                            width, height = self.current_resolution
-                        else:
-                            width = stOutFrame.stFrameInfo.nWidth
-                            height = stOutFrame.stFrameInfo.nHeight
+                        # Get original dimensions
+                        original_width = stOutFrame.stFrameInfo.nWidth
+                        original_height = stOutFrame.stFrameInfo.nHeight
+
+                        # Get current display resolution
+                        display_width, display_height = self.current_resolution if self.current_resolution else (original_width, original_height)
 
                         pData = (c_ubyte * stOutFrame.stFrameInfo.nFrameLen)()
                         cdll.msvcrt.memcpy(byref(pData), stOutFrame.pBufAddr, stOutFrame.stFrameInfo.nFrameLen)
                         data = np.frombuffer(pData, count=int(stOutFrame.stFrameInfo.nFrameLen), dtype=np.uint8)
-                        frame = data.reshape((height, width, -1))
+                        frame = data.reshape((original_height, original_width, -1))
+                        
+                        # Resize frame to display resolution while maintaining aspect ratio
+                        if self.current_resolution:
+                            aspect_ratio = original_width / original_height
+                            target_aspect = display_width / display_height
+                            
+                            if aspect_ratio > target_aspect:
+                                # Width limited by display width
+                                new_width = display_width
+                                new_height = int(display_width / aspect_ratio)
+                            else:
+                                # Height limited by display height
+                                new_height = display_height
+                                new_width = int(display_height * aspect_ratio)
+                                
+                            frame = cv2.resize(frame, (new_width, new_height))
                         
                         # Release buffer
                         self.camera.MV_CC_FreeImageBuffer(stOutFrame)
@@ -188,28 +203,41 @@ class WebcamManager:
     def set_resolution(self, width, height):
         if self.current_camera_type == 'HIKERBOT' and self.camera:
             try:
-                # Stop grabbing before changing settings
-                self.camera.MV_CC_StopGrabbing()
-                
-                # Set resolution
-                ret = self.camera.MV_CC_SetIntValue("Width", width)
-                if ret != 0:
-                    print("Failed to set width")
-                    return False
-
-                ret = self.camera.MV_CC_SetIntValue("Height", height)
-                if ret != 0:
-                    print("Failed to set height")
-                    return False
-
-                # Resume grabbing
-                ret = self.camera.MV_CC_StartGrabbing()
-                if ret != 0:
-                    print("Failed to restart grabbing")
-                    return False
-
+                # Store the desired display resolution
                 self.current_resolution = (width, height)
+                
+                # Get the current sensor resolution
+                nWidth = c_uint()
+                nHeight = c_uint()
+                ret = self.camera.MV_CC_GetIntValue("Width", nWidth)
+                if ret != 0:
+                    print("Failed to get width")
+                    return False
+                    
+                ret = self.camera.MV_CC_GetIntValue("Height", nHeight)
+                if ret != 0:
+                    print("Failed to get height")
+                    return False
+                    
+                original_width = nWidth.value
+                original_height = nHeight.value
+                
+                # Calculate scaling factors
+                scale_x = width / original_width
+                scale_y = height / original_height
+                
+                # Use the smaller scaling factor to maintain aspect ratio
+                scale = min(scale_x, scale_y)
+                
+                # Calculate new dimensions that maintain aspect ratio
+                display_width = int(original_width * scale)
+                display_height = int(original_height * scale)
+                
+                # Update current resolution with the actual display dimensions
+                self.current_resolution = (display_width, display_height)
+                
                 return True
+                
             except Exception as e:
                 print(f"Error setting resolution: {str(e)}")
                 return False
