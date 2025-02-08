@@ -25,11 +25,11 @@ class WebcamManager:
         self.frame = None
         self.thread = None
         self.last_frame = None
-        self.user_save_path = None
+        self.user_save_path = None  # Add user-defined save path
         self.default_save_path = 'C:\\Users\\Public\\MicroScope_Images'
-        self.temp_dir = None
+        self.temp_dir = None  # Will be set when save path is set
         self.current_camera_type = None
-        self.hikrobot_camera = None
+        self.hikrobot_camera = None  # For HIKROBOT camera instance
         self.current_resolution = None
         
         # Initialize with default path
@@ -46,11 +46,8 @@ class WebcamManager:
             # Create main directory
             os.makedirs(self.user_save_path, exist_ok=True)
             
-            # Update and create temp directory
+            # Update temp directory path
             self.temp_dir = os.path.join(self.user_save_path, 'temp')
-            # Clear any existing temp files
-            if os.path.exists(self.temp_dir):
-                self.clear_temp_directory()
             os.makedirs(self.temp_dir, exist_ok=True)
             
             return True
@@ -252,18 +249,21 @@ class WebcamManager:
     def take_snapshot(self, save_path=None):
         if self.last_frame:
             try:
-                # Always save snapshots to temp directory first
-                if not os.path.exists(self.temp_dir):
-                    os.makedirs(self.temp_dir, exist_ok=True)
+                # Use provided save path or default
+                if not save_path:
+                    save_path = self.get_current_save_path()
+                
+                # Create directory if it doesn't exist
+                os.makedirs(save_path, exist_ok=True)
                 
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"microscope_{timestamp}.jpg"
-                filepath = os.path.join(self.temp_dir, filename)
+                filepath = os.path.join(save_path, filename)
                 
                 with open(filepath, 'wb') as f:
                     f.write(self.last_frame)
                 
-                print(f"Snapshot saved to temp: {filepath}")
+                print(f"Snapshot saved to: {filepath}")
                 return filepath
             except Exception as e:
                 print(f"Error taking snapshot: {str(e)}")

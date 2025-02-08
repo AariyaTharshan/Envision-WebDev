@@ -122,21 +122,31 @@ const CameraCalibrate = ({ imagePath }) => {
     
     const { x, y } = getScaledCoordinates(e.clientX, e.clientY);
     setIsDrawing(true);
+    // Start point is where user clicks
     setCalibrationLine({
-      start: { x, y },
-      end: { x, y },
-      measurement: null
+        start: { x, y },
+        end: { x, y },
+        measurement: null
     });
   };
 
   const handleMouseMove = (e) => {
     if (!isDrawing) return;
     
-    const { x, y } = getScaledCoordinates(e.clientX, e.clientY);
+    const { x } = getScaledCoordinates(e.clientX, e.clientY);
+    // Keep y coordinate same as start point for horizontal line
     setCalibrationLine(prev => ({
-      ...prev,
-      end: { x, y }
+        ...prev,
+        end: { 
+            x: x,  // Update only x coordinate
+            y: prev.start.y  // Keep y coordinate same as start point
+        }
     }));
+
+    // Redraw canvas
+    const ctx = canvasRef.current.getContext('2d');
+    drawImage();
+    drawLine(ctx);
   };
 
   const handleMouseUp = () => {
@@ -152,34 +162,49 @@ const CameraCalibrate = ({ imagePath }) => {
 
   // Modify handleMeasurementSubmit to handle single calibration
   const handleMeasurementSubmit = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!measurementValue || isNaN(measurementValue)) {
-      alert('Please enter a valid measurement value');
-      return;
+        alert('Please enter a valid measurement value');
+        return;
     }
 
     const value = parseFloat(measurementValue);
-    const pixelDistance = calculatePixelDistance(calibrationLine.start, calibrationLine.end);
+    const pixelDistance = Math.sqrt(
+        Math.pow(calibrationLine.end.x - calibrationLine.start.x, 2)
+    );
 
-    // Calculate pixels per unit (more accurate way)
+    // Calculate pixels per unit
     const pixelsPerUnit = pixelDistance / value;
     setRealScale({ 
-      x: pixelsPerUnit,
-      y: pixelsPerUnit  // Assuming square pixels
+        x: pixelsPerUnit,
+        y: pixelsPerUnit
     });
 
-    // Store calibration line with more metadata
+    // Update calibration data
+    setCalibrationData({
+        pixelDistance: pixelDistance,
+        actualDistance: value,
+        unit: unit,
+        calibrationFactor: pixelsPerUnit
+    });
+
+    // Store calibration line
     setLines([{
-      ...calibrationLine,
-      measurement: value,
-      unit: unit,
-      pixelDistance: pixelDistance,
-      pixelsPerUnit: pixelsPerUnit,
-      calibrationDate: new Date().toISOString()
+        ...calibrationLine,
+        measurement: value,
+        unit: unit,
+        pixelDistance: pixelDistance,
+        pixelsPerUnit: pixelsPerUnit,
+        calibrationDate: new Date().toISOString()
     }]);
 
     setMeasurementValue('');
     setCanDrawLine(false);
+    
+    // Redraw canvas with updated measurements
+    const ctx = canvasRef.current.getContext('2d');
+    drawImage();
+    drawLine(ctx);
   };
 
   // Calculate real-time measurement while drawing
@@ -458,6 +483,40 @@ const CameraCalibrate = ({ imagePath }) => {
     }
   }, [imagePath]); // Update when imagePath changes
 
+  const drawLine = (ctx) => {
+    if (calibrationLine.start && calibrationLine.end) {
+        ctx.beginPath();
+        ctx.moveTo(
+            calibrationLine.start.x * scaleFactor,
+            calibrationLine.start.y * scaleFactor
+        );
+        ctx.lineTo(
+            calibrationLine.end.x * scaleFactor,
+            calibrationLine.start.y * scaleFactor  // Use start.y for horizontal line
+        );
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw endpoints
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(
+            calibrationLine.start.x * scaleFactor,
+            calibrationLine.start.y * scaleFactor,
+            4, 0, 2 * Math.PI
+        );
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(
+            calibrationLine.end.x * scaleFactor,
+            calibrationLine.start.y * scaleFactor,  // Use start.y for horizontal line
+            4, 0, 2 * Math.PI
+        );
+        ctx.fill();
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-8 bg-white rounded-xl shadow-2xl">
       {/* Header Section */}
@@ -537,6 +596,63 @@ const CameraCalibrate = ({ imagePath }) => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex justify-center gap-4 mb-8">
+        <button
+          onClick={handleMeasurementSubmit}
+          disabled={!calibrationLine.start || !measurementValue || !canDrawLine}
+          className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
+            disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200
+            flex items-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+              d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+          </svg>
+          Calibrate
+        </button>
+
+        <button
+          onClick={saveImage}
+          disabled={!image}
+          className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 
+            disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200
+            flex items-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L12 8m4-4v12" />
+          </svg>
+          Save Image
+        </button>
+
+        <button
+          onClick={handleSaveCalibration}
+          disabled={!realScale.x}
+          className="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 
+            disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200
+            flex items-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+              d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+          Save Calibration
+        </button>
+
+        <button
+          onClick={resetCalibration}
+          className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 
+            transition-all duration-200 flex items-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Reset
+        </button>
       </div>
 
       {/* Info Panels */}
