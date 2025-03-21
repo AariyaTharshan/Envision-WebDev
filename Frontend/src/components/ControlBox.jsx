@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { FaVideo, FaVideoSlash } from 'react-icons/fa';
 
-const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
+const ControlBox = ({ isRecording, setIsRecording, setImagePath, onFolderChange }) => {
   const [magnification, setMagnification] = useState('100x');
   const [location, setLocation] = useState('C:\\Users\\Public\\MicroScope_Images');
   const [fromDate, setFromDate] = useState('');
@@ -106,10 +107,13 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
 
   const handleFolderPick = async () => {
     try {
-      // Call electron's folder picker through window.electron
       const folderPath = await window.electron.openFolder();
       if (folderPath) {
         setLocation(folderPath);
+        if (onFolderChange) {
+          onFolderChange(folderPath);
+        }
+        
         // Update server with new save path
         const response = await fetch('http://localhost:5000/api/set-save-path', {
           method: 'POST',
@@ -122,8 +126,8 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
         });
 
         const data = await response.json();
-        if (!data.status === 'success') {
-          alert('Failed to update save location');
+        if (data.status !== 'success') {
+          console.error('Failed to update save location:', data);
         }
       }
     } catch (error) {
@@ -131,6 +135,13 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
       alert('Error selecting folder: ' + error.message);
     }
   };
+
+  // Add this useEffect to set initial folder path
+  useEffect(() => {
+    if (onFolderChange && location) {
+      onFolderChange(location);
+    }
+  }, []); // Run once on mount
 
   const handleMagnificationChange = async (newMag) => {
     setMagnification(newMag);
@@ -164,10 +175,10 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
   };
 
   return (
-    <div className="fixed bottom-6 left-6 bg-white rounded-lg shadow-xl p-4 w-72 border border-gray-200">
+    <div className="bg-white rounded-lg shadow-xl p-4 w-full border border-gray-200">
       {/* Control Buttons Row */}
       <div className="flex justify-between mb-4 gap-2">
-        {/* Record Button */}
+        {/* Record Button - Updated with camcorder icon */}
         <button
           onClick={handleRecord}
           className={`w-12 h-12 rounded-full flex items-center justify-center transition-all
@@ -175,7 +186,11 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
             hover:scale-105 active:scale-95`}
           title={isRecording ? "Stop Recording" : "Start Recording"}
         >
-          <div className={`w-3 h-3 rounded-full ${isRecording ? 'bg-white' : 'bg-red-500'}`} />
+          {isRecording ? (
+            <FaVideoSlash className="w-5 h-5" />
+          ) : (
+            <FaVideo className="w-5 h-5" />
+          )}
         </button>
 
         {/* Snap Button */}

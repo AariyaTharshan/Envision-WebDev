@@ -3,6 +3,7 @@ import Navbar from './components/Navbar'
 import Toolbar from './components/Toolbar'
 import ControlBox from './components/ControlBox'
 import Display from './components/Display'
+import ImageList from './components/ImageList'
 
 const App = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -11,6 +12,7 @@ const App = () => {
   const [selectedTool, setSelectedTool] = useState('pointer');
   const [measurementData, setMeasurementData] = useState(null);
   const [shapes, setShapes] = useState([]);
+  const [currentFolderPath, setCurrentFolderPath] = useState('C:\\Users\\Public\\MicroScope_Images');
 
   const handleImageLoad = (url) => {
     setCurrentImageUrl(url);
@@ -34,6 +36,16 @@ const App = () => {
     }
   };
 
+  const handleImageSelect = (imagePath) => {
+    setImagePath(imagePath);
+  };
+
+  const handleImageDelete = (imagePath) => {
+    if (imagePath === imagePath) {
+      setImagePath(null);
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <div className="h-10 z-50 relative">
@@ -51,12 +63,22 @@ const App = () => {
         />
       </div>
       <div className="flex-1 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-[180px] h-full z-30">
-          <ControlBox 
-            isRecording={isRecording}
-            setIsRecording={setIsRecording}
-            setImagePath={setImagePath}
-          />
+        <div className="fixed bottom-6 left-6 right-6 z-30 flex gap-4">
+          <div className="w-[288px] flex-shrink-0">
+            <ControlBox 
+              isRecording={isRecording}
+              setIsRecording={setIsRecording}
+              setImagePath={setImagePath}
+              onFolderChange={setCurrentFolderPath}
+            />
+          </div>
+          <div className="flex-1">
+            <ImageList
+              currentPath={currentFolderPath}
+              onSelectImage={handleImageSelect}
+              onDeleteImage={handleImageDelete}
+            />
+          </div>
         </div>
         <div className="absolute inset-0 overflow-auto">
           <Display

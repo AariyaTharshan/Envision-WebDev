@@ -215,7 +215,8 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseUp: (coords) => {
         if (isDrawing) {
           const radius = Math.sqrt(
-            Math.pow(coords.x - startPoint.x, 2) + Math.pow(coords.y - startPoint.y, 2)
+            Math.pow(coords.x - startPoint.x, 2) + 
+            Math.pow(coords.y - startPoint.y, 2)
           );
           const newCircle = { type: 'circle', center: startPoint, radius };
           onShapesUpdate([...shapes, newCircle]);
@@ -295,6 +296,65 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         // Force final redraw
         if (ctxRef.current) {
           drawShapes(ctxRef.current);
+        }
+      }
+    },
+    arc: {
+      mouseDown: (coords) => {
+        setStartPoint(coords);
+        setIsDrawing(true);
+        setCurrentShape({ 
+          type: 'arc', 
+          center: coords, 
+          radius: 0, 
+          startAngle: 0, 
+          endAngle: 0 
+        });
+      },
+      mouseMove: (coords) => {
+        if (isDrawing) {
+          const radius = Math.sqrt(
+            Math.pow(coords.x - startPoint.x, 2) + 
+            Math.pow(coords.y - startPoint.y, 2)
+          );
+          
+          // Calculate angle
+          let pointAngle = Math.atan2(
+            coords.y - startPoint.y,
+            coords.x - startPoint.x
+          );
+
+          setCurrentShape({
+            type: 'arc',
+            center: startPoint,
+            radius: radius,
+            startAngle: 0,
+            endAngle: pointAngle
+          });
+        }
+      },
+      mouseUp: (coords) => {
+        if (isDrawing) {
+          const radius = Math.sqrt(
+            Math.pow(coords.x - startPoint.x, 2) + 
+            Math.pow(coords.y - startPoint.y, 2)
+          );
+          
+          let pointAngle = Math.atan2(
+            coords.y - startPoint.y,
+            coords.x - startPoint.x
+          );
+
+          const newArc = {
+            type: 'arc',
+            center: startPoint,
+            radius: radius,
+            startAngle: 0,
+            endAngle: pointAngle
+          };
+
+          onShapesUpdate([...shapes, newArc]);
+          setIsDrawing(false);
         }
       }
     },
@@ -446,6 +506,37 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
             const distance = (2 * area) / AB;
             
             if (distance <= eraserRadius) return false;
+          }
+          return true;
+        }
+
+        case 'arc': {
+          // Check if point is near the arc line
+          const center = shape.center;
+          const distanceToCenter = Math.sqrt(
+            Math.pow(coords.x - center.x, 2) + 
+            Math.pow(coords.y - center.y, 2)
+          );
+          
+          if (Math.abs(distanceToCenter - shape.radius) <= eraserRadius) {
+            // Calculate angle of point relative to center
+            let pointAngle = Math.atan2(
+              coords.y - center.y,
+              coords.x - center.x
+            );
+            
+            // Check if point angle is within arc angles
+            let startAngle = shape.startAngle;
+            let endAngle = shape.endAngle;
+            
+            // Normalize angles
+            while (startAngle < 0) startAngle += Math.PI * 2;
+            while (endAngle < 0) endAngle += Math.PI * 2;
+            while (pointAngle < 0) pointAngle += Math.PI * 2;
+            
+            if (endAngle < startAngle) endAngle += Math.PI * 2;
+            
+            return !(pointAngle >= startAngle && pointAngle <= endAngle);
           }
           return true;
         }
@@ -639,6 +730,46 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
           }
         }
         break;
+
+      case 'arc': {
+        ctx.beginPath();
+        ctx.arc(
+          shape.center.x,
+          shape.center.y,
+          shape.radius,
+          shape.startAngle,
+          shape.endAngle
+        );
+        ctx.stroke();
+
+        // Draw radius line
+        ctx.beginPath();
+        ctx.moveTo(shape.center.x, shape.center.y);
+        ctx.lineTo(
+          shape.center.x + shape.radius * Math.cos(shape.endAngle),
+          shape.center.y + shape.radius * Math.sin(shape.endAngle)
+        );
+        ctx.stroke();
+
+        // Calculate and display measurements
+        const arcLength = Math.abs(shape.endAngle - shape.startAngle) * shape.radius;
+        const angle = Math.abs((shape.endAngle - shape.startAngle) * (180 / Math.PI));
+        
+        const arcLengthMicrons = pixelsToMicrons(arcLength);
+        const radiusMicrons = pixelsToMicrons(shape.radius);
+
+        // Display measurements
+        const textX = shape.center.x + (shape.radius * 0.7) * Math.cos(shape.endAngle / 2);
+        const textY = shape.center.y + (shape.radius * 0.7) * Math.sin(shape.endAngle / 2);
+
+        ctx.fillStyle = 'black';
+        ctx.fillRect(textX - 60, textY - 35, 120, 50);
+        ctx.fillStyle = 'white';
+        ctx.fillText(`R: ${radiusMicrons.toFixed(1)}µm`, textX - 55, textY - 30);
+        ctx.fillText(`L: ${arcLengthMicrons.toFixed(1)}µm`, textX - 55, textY - 15);
+        ctx.fillText(`A: ${angle.toFixed(1)}°`, textX - 55, textY);
+        break;
+      }
     }
   };
 

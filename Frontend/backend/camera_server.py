@@ -15,6 +15,7 @@ from porosity_analysis import analyze_porosity, prepare_image
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'MvImport')))
 from MvCameraControl_class import *
 from ctypes import c_float, byref
+import imghdr  # For image type verification
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000", "http://localhost:5173"], "methods": ["GET", "POST", "OPTIONS"], "headers": ["Content-Type"]}})
@@ -1540,6 +1541,99 @@ def get_calibrations():
 
     except Exception as e:
         print(f"Error getting calibrations: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/list-images', methods=['POST'])
+def list_images():
+    try:
+        data = request.get_json()
+        directory = data.get('path')
+        filters = data.get('filters', {})
+        allowed_extensions = filters.get('extensions', ['.jpg', '.jpeg', '.png', '.bmp', '.tiff'])
+        
+        print(f"Listing images from directory: {directory}")
+        
+        if not directory or not os.path.exists(directory):
+            print(f"Directory not found: {directory}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Directory not found'
+            }), 404
+
+        images = []
+        for filename in os.listdir(directory):
+            file_path = os.path.join(directory, filename)
+            
+            # Check if it's a file and has allowed extension
+            if os.path.isfile(file_path) and any(filename.lower().endswith(ext) for ext in allowed_extensions):
+                try:
+                    # Get file stats
+                    stats = os.stat(file_path)
+                    
+                    # Verify it's actually an image
+                    if imghdr.what(file_path):
+                        images.append({
+                            'name': filename,
+                            'path': file_path,
+                            'size': stats.st_size,
+                            'date': datetime.fromtimestamp(stats.st_mtime).isoformat()
+                        })
+                except Exception as e:
+                    print(f"Error processing file {filename}: {str(e)}")
+                    continue
+
+        # Sort images by date, newest first
+        images.sort(key=lambda x: x['date'], reverse=True)
+        
+        print(f"Found {len(images)} images")
+        return jsonify({
+            'status': 'success',
+            'images': images
+        })
+
+    except Exception as e:
+        print(f"Error listing images: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/delete-image', methods=['POST'])
+def delete_image():
+    try:
+        data = request.get_json()
+        image_path = data.get('path')
+        
+        print(f"Attempting to delete image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Verify it's a file and an image
+        if not os.path.isfile(image_path) or not imghdr.what(image_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid image file'
+            }), 400
+
+        # Delete the file
+        os.remove(image_path)
+        
+        print(f"Successfully deleted image: {image_path}")
+        return jsonify({
+            'status': 'success',
+            'message': 'Image deleted successfully'
+        })
+
+    except Exception as e:
+        print(f"Error deleting image: {str(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e)
