@@ -25,6 +25,11 @@ const CameraCalibrate = ({ imagePath }) => {
 
   const DISPLAY_WIDTH = 800; // Fixed display width in pixels
 
+  const [calibrationType, setCalibrationType] = useState(null); // 'new' or 'existing'
+  const [magnification, setMagnification] = useState('100x');
+  const [existingCalibrations, setExistingCalibrations] = useState({});
+  const [selectedExistingCalibration, setSelectedExistingCalibration] = useState(null);
+
   // Add reset calibration function
   const resetCalibration = () => {
     setLines([]);
@@ -425,6 +430,38 @@ const CameraCalibrate = ({ imagePath }) => {
     );
   };
 
+  // Add this function to load existing calibrations
+  const loadExistingCalibrations = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/get-calibrations');
+      const data = await response.json();
+      if (data.status === 'success') {
+        setExistingCalibrations(data.calibrations);
+      } else {
+        console.error('Failed to load calibrations:', data.message);
+      }
+    } catch (error) {
+      console.error('Error loading calibrations:', error);
+    }
+  };
+
+  // Add useEffect to load existing calibrations when component mounts
+  useEffect(() => {
+    loadExistingCalibrations();
+  }, []);
+
+  // Add function to handle selecting existing calibration
+  const handleSelectExistingCalibration = (calibration) => {
+    setSelectedExistingCalibration(calibration);
+    setRealScale({
+      x: calibration.calibrationFactor,
+      y: calibration.calibrationFactor
+    });
+    setUnit(calibration.unit);
+    setCanDrawLine(false);
+  };
+
+  // Modify handleSaveCalibration to include magnification
   const handleSaveCalibration = async () => {
     try {
       if (!calibrationData.calibrationFactor) {
@@ -432,17 +469,19 @@ const CameraCalibrate = ({ imagePath }) => {
         return;
       }
 
-      console.log('Sending calibration data to server...');
+      const calibrationToSave = {
+        ...calibrationData,
+        magnification,
+        timestamp: new Date().toISOString()
+      };
+
       const response = await fetch('http://localhost:5000/api/save-calibration', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          calibrationData: {
-            ...calibrationData,
-            timestamp: new Date().toISOString()
-          }
+          calibrationData: calibrationToSave
         })
       });
 
@@ -463,6 +502,150 @@ const CameraCalibrate = ({ imagePath }) => {
       alert('Error saving calibration: ' + error.message);
     }
   };
+
+  // Add calibration type selection component
+  const CalibrationType = () => (
+    <div className="mb-8 bg-white p-6 rounded-xl shadow-md">
+      <h3 className="text-xl font-semibold mb-4">Select Calibration Type</h3>
+      <div className="flex gap-4">
+        <button
+          onClick={() => setCalibrationType('new')}
+          className={`flex-1 py-3 px-6 rounded-lg transition-all duration-200 ${
+            calibrationType === 'new'
+              ? 'bg-blue-500 text-white'
+              : 'bg-gray-100 hover:bg-gray-200'
+          }`}
+        >
+          New Calibration
+        </button>
+        <button
+          onClick={() => setCalibrationType('existing')}
+          className={`flex-1 py-3 px-6 rounded-lg transition-all duration-200 ${
+            calibrationType === 'existing'
+              ? 'bg-blue-500 text-white'
+              : 'bg-gray-100 hover:bg-gray-200'
+          }`}
+        >
+          Use Existing Calibration
+        </button>
+      </div>
+    </div>
+  );
+
+  // Modify the ExistingCalibrations component
+  const ExistingCalibrations = () => (
+    <div className="mb-8 bg-white p-6 rounded-xl shadow-md">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-xl font-semibold text-gray-800">Select Existing Calibration</h3>
+        <button
+          onClick={() => setCalibrationType(null)}
+          className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 
+            hover:bg-gray-100 rounded-lg transition-all duration-200"
+        >
+          ← Back to Selection
+        </button>
+      </div>
+      
+      {Object.entries(existingCalibrations).length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <p>No saved calibrations found.</p>
+          <button
+            onClick={() => setCalibrationType('new')}
+            className="mt-4 px-6 py-2 bg-blue-500 text-white rounded-lg 
+              hover:bg-blue-600 transition-all duration-200"
+          >
+            Create New Calibration
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {Object.entries(existingCalibrations).map(([mag, calibration]) => (
+            <div
+              key={mag}
+              className={`p-4 rounded-lg border transition-all duration-200 
+                ${selectedExistingCalibration?.magnification === mag
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-200'
+                }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-grow">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-lg font-semibold text-gray-800">{mag}</h4>
+                    {selectedExistingCalibration?.magnification === mag && (
+                      <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                        Selected
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-2 space-y-1">
+                    <p className="text-sm text-gray-600">
+                      Scale: {calibration.calibrationFactor.toFixed(4)} pixels/{calibration.unit}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Last updated: {new Date(calibration.timestamp).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleSelectExistingCalibration(calibration)}
+                    className={`px-4 py-2 rounded-lg transition-all duration-200 
+                      ${selectedExistingCalibration?.magnification === mag
+                        ? 'bg-green-500 text-white hover:bg-green-600'
+                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                      }`}
+                  >
+                    {selectedExistingCalibration?.magnification === mag ? 'Selected' : 'Use'}
+                  </button>
+                </div>
+              </div>
+              {selectedExistingCalibration?.magnification === mag && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white p-3 rounded-lg shadow-sm">
+                      <p className="text-sm text-gray-600">Resolution</p>
+                      <p className="font-medium">
+                        {(1/calibration.calibrationFactor).toFixed(4)} {calibration.unit}/pixel
+                      </p>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg shadow-sm">
+                      <p className="text-sm text-gray-600">Unit</p>
+                      <p className="font-medium">{calibration.unit}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {selectedExistingCalibration && (
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <h4 className="font-semibold text-gray-800">Selected Calibration</h4>
+              <p className="text-sm text-gray-600">
+                {selectedExistingCalibration.magnification} - 
+                {selectedExistingCalibration.calibrationFactor.toFixed(4)} pixels/{selectedExistingCalibration.unit}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setCanDrawLine(true);
+                setCalibrationType('new');
+              }}
+              className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg
+                hover:bg-gray-200 transition-all duration-200"
+            >
+              Create New Instead
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   useEffect(() => {
     if (imagePath) {
@@ -525,11 +708,36 @@ const CameraCalibrate = ({ imagePath }) => {
         <p className="text-gray-600">Calibrate your microscope camera for precise measurements</p>
       </div>
 
-      {/* Main Control Panel */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      {/* Calibration Type Selection */}
+      {!calibrationType && <CalibrationType />}
+
+      {/* Existing Calibrations */}
+      {calibrationType === 'existing' && <ExistingCalibrations />}
+
+      {/* New Calibration Controls */}
+      {calibrationType === 'new' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Magnification Selection */}
+          <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+            <h3 className="text-lg font-semibold mb-4 text-gray-700">1. Select Magnification</h3>
+            <select
+              value={magnification}
+              onChange={(e) => setMagnification(e.target.value)}
+              className="w-full px-4 py-3 border rounded-lg bg-white
+                focus:outline-none focus:ring-2 focus:ring-blue-500
+                transition-all duration-200"
+            >
+              <option value="50x">50x</option>
+              <option value="100x">100x</option>
+              <option value="200x">200x</option>
+              <option value="500x">500x</option>
+              <option value="1000x">1000x</option>
+            </select>
+          </div>
+
         {/* Unit Selection Section */}
         <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">1. Select Unit</h3>
+            <h3 className="text-lg font-semibold mb-4 text-gray-700">2. Select Unit</h3>
           <select 
             value={unit}
             onChange={(e) => handleUnitChange(e.target.value)}
@@ -545,7 +753,7 @@ const CameraCalibrate = ({ imagePath }) => {
 
         {/* Measurement Input Section */}
         <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">2. Enter Measurement</h3>
+            <h3 className="text-lg font-semibold mb-4 text-gray-700">3. Enter Measurement</h3>
           <div className="flex space-x-2">
             <input
               type="number"
@@ -564,6 +772,7 @@ const CameraCalibrate = ({ imagePath }) => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Canvas Section */}
       <div className="relative mb-8">

@@ -14,6 +14,7 @@ import json
 from porosity_analysis import analyze_porosity, prepare_image
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'MvImport')))
 from MvCameraControl_class import *
+from ctypes import c_float, byref
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000", "http://localhost:5173"], "methods": ["GET", "POST", "OPTIONS"], "headers": ["Content-Type"]}})
@@ -31,6 +32,7 @@ class WebcamManager:
         self.current_camera_type = None
         self.hikrobot_camera = None  # For HIKROBOT camera instance
         self.current_resolution = None
+        self.current_zoom = 1.0  # Add default zoom level
         
         # Initialize with default path
         self.set_save_path(self.default_save_path)
@@ -151,6 +153,10 @@ class WebcamManager:
 
                 self.camera = self.hikrobot_camera
                 self.current_camera_type = 'HIKERBOT'
+                
+                # Set initial zoom based on current magnification
+                if hasattr(self, 'current_zoom'):
+                    self.set_digital_zoom(f"{int(self.current_zoom * 100)}x")
             else:
                 # Default webcam (index 0)
                 print("Using default webcam")
@@ -312,6 +318,53 @@ class WebcamManager:
                 print(f"Error setting resolution: {str(e)}")
                 return False
         return False
+
+    def set_digital_zoom(self, magnification):
+        """Set digital zoom based on magnification value"""
+        try:
+            if self.current_camera_type != 'HIKERBOT' or not self.hikrobot_camera:
+                print("Digital zoom only available for HIKROBOT cameras")
+                return False
+                
+            # Convert magnification (e.g., '100x') to zoom factor
+            try:
+                # Remove 'x' and convert to float
+                zoom_factor = float(magnification.replace('x', ''))
+                # Convert to proper zoom factor (e.g., 100x = 1.0, 200x = 2.0, 50x = 0.5)
+                normalized_zoom = zoom_factor / 100.0
+                print(f"Setting zoom factor to: {normalized_zoom} from magnification {magnification}")
+            except ValueError as e:
+                print(f"Invalid magnification format: {magnification}")
+                return False
+
+            # Set digital zoom
+            ret = self.hikrobot_camera.MV_CC_SetDigitalZoom(c_float(normalized_zoom))
+            if ret == 0:
+                self.current_zoom = normalized_zoom
+                print(f"Successfully set digital zoom to {normalized_zoom}x")
+                return True
+            else:
+                print(f"Failed to set digital zoom (error code: {ret})")
+                return False
+                
+        except Exception as e:
+            print(f"Error setting digital zoom: {str(e)}")
+            return False
+            
+    def get_digital_zoom(self):
+        """Get current digital zoom factor"""
+        try:
+            if self.current_camera_type != 'HIKERBOT' or not self.hikrobot_camera:
+                return None
+                
+            zoom_factor = c_float()
+            ret = self.hikrobot_camera.MV_CC_GetDigitalZoom(byref(zoom_factor))
+            if ret == 0:
+                return zoom_factor.value
+            return None
+        except Exception as e:
+            print(f"Error getting zoom: {str(e)}")
+            return None
 
 webcam = WebcamManager()
 
@@ -1411,6 +1464,82 @@ def set_save_path():
             'message': 'No path provided'
         }), 400
     except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/set-zoom', methods=['POST'])
+def set_zoom():
+    try:
+        data = request.get_json()
+        magnification = data.get('magnification', '100x')  # Default to 100x if not specified
+        
+        success = webcam.set_digital_zoom(magnification)
+        
+        if success:
+            return jsonify({
+                'status': 'success',
+                'message': f'Zoom set to {magnification}',
+                'zoom_factor': webcam.current_zoom
+            })
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to set zoom'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/get-zoom', methods=['GET'])
+def get_zoom():
+    try:
+        zoom_factor = webcam.get_digital_zoom()
+        if zoom_factor is not None:
+            return jsonify({
+                'status': 'success',
+                'zoom_factor': zoom_factor
+            })
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to get zoom'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/get-calibrations', methods=['GET'])
+def get_calibrations():
+    try:
+        calibration_dir = os.path.join('calibration_data')
+        if not os.path.exists(calibration_dir):
+            return jsonify({
+                'status': 'success',
+                'calibrations': {}
+            })
+
+        calibrations = {}
+        for filename in os.listdir(calibration_dir):
+            if filename.endswith('.json'):
+                filepath = os.path.join(calibration_dir, filename)
+                with open(filepath, 'r') as f:
+                    data = json.load(f)
+                    # Keep only the most recent calibration for each magnification
+                    mag = data.get('magnification', '100x')  # Default to 100x if not specified
+                    if mag not in calibrations or data['timestamp'] > calibrations[mag]['timestamp']:
+                        calibrations[mag] = data
+
+        return jsonify({
+            'status': 'success',
+            'calibrations': calibrations
+        })
+
+    except Exception as e:
+        print(f"Error getting calibrations: {str(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e)

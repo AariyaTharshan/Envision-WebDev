@@ -15,7 +15,7 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
         const settings = savedSettings ? JSON.parse(savedSettings) : null;
         const cameraType = settings ? settings.camera : null;
 
-        console.log('Starting camera with type:', cameraType); // Debug log
+        console.log('Starting camera with type:', cameraType);
 
         const response = await fetch('http://localhost:5000/api/start-camera', {
           method: 'POST',
@@ -26,13 +26,13 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
             cameraType: cameraType
           })
         });
-        
-        const data = await response.json();
-        if (data.status === 'success') {
+
+        if (response.ok) {
           setIsRecording(true);
-          setImagePath(null);
-        } else {
-          alert('Failed to start camera: ' + data.message);
+          // Set zoom after camera starts if it's HIKERBOT
+          if (cameraType === 'HIKERBOT') {
+            await handleMagnificationChange(magnification);
+          }
         }
       } else {
         await fetch('http://localhost:5000/api/stop-camera', {
@@ -41,8 +41,7 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
         setIsRecording(false);
       }
     } catch (error) {
-      console.error('Error controlling camera:', error);
-      alert('Error controlling camera: ' + error.message);
+      console.error('Error toggling camera:', error);
     }
   };
 
@@ -133,6 +132,37 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
     }
   };
 
+  const handleMagnificationChange = async (newMag) => {
+    setMagnification(newMag);
+    
+    try {
+      // Get current camera type
+      const savedSettings = localStorage.getItem('cameraSettings');
+      const settings = savedSettings ? JSON.parse(savedSettings) : null;
+      const cameraType = settings ? settings.camera : null;
+
+      // Only send zoom command if camera is HIKERBOT
+      if (cameraType === 'HIKERBOT' && isRecording) {
+        const response = await fetch('http://localhost:5000/api/set-zoom', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            magnification: newMag
+          })
+        });
+
+        const data = await response.json();
+        if (data.status !== 'success') {
+          console.error('Failed to set zoom:', data.message);
+        }
+      }
+    } catch (error) {
+      console.error('Error setting zoom:', error);
+    }
+  };
+
   return (
     <div className="fixed bottom-6 left-6 bg-white rounded-lg shadow-xl p-4 w-72 border border-gray-200">
       {/* Control Buttons Row */}
@@ -212,7 +242,7 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath }) => {
           <label className="text-sm text-gray-600 w-24">Magnification:</label>
           <select
             value={magnification}
-            onChange={(e) => setMagnification(e.target.value)}
+            onChange={(e) => handleMagnificationChange(e.target.value)}
             className="flex-1 p-1 border rounded text-sm"
           >
             {magnificationOptions.map(option => (

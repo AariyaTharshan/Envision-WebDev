@@ -83,7 +83,6 @@ const CameraConfiguration = () => {
 
   const handleResolutionChange = async (newResolution) => {
     try {
-        // Only send resolution update if HIKERBOT camera is selected
         if (selectedCamera === 'HIKERBOT') {
             const response = await fetch('http://localhost:5000/api/set-camera-resolution', {
                 method: 'POST',
@@ -97,20 +96,36 @@ const CameraConfiguration = () => {
             
             const data = await response.json();
             if (data.status === 'success') {
-                console.log('Camera resolution updated successfully');
                 setResolution(newResolution);
                 const [width, height] = newResolution.split('x').map(Number);
                 setDimensions({ width, height });
-            } else {
-                console.error('Failed to update camera resolution:', data.message);
-                setSaveStatus('Failed to update camera resolution');
-                setTimeout(() => setSaveStatus(''), 3000);
+                
+                // Save to localStorage and trigger storage event
+                const settings = {
+                    camera: selectedCamera,
+                    resolution: newResolution,
+                    timestamp: new Date().toISOString()
+                };
+                localStorage.setItem('cameraSettings', JSON.stringify(settings));
+                
+                // Dispatch storage event for other components
+                window.dispatchEvent(new Event('storage'));
             }
         } else {
-            // For other cameras, just update the UI
             setResolution(newResolution);
             const [width, height] = newResolution.split('x').map(Number);
             setDimensions({ width, height });
+            
+            // Save to localStorage and trigger storage event
+            const settings = {
+                camera: selectedCamera,
+                resolution: newResolution,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('cameraSettings', JSON.stringify(settings));
+            
+            // Dispatch storage event for other components
+            window.dispatchEvent(new Event('storage'));
         }
     } catch (error) {
         console.error('Error updating resolution:', error);
