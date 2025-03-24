@@ -23,12 +23,34 @@ const CameraCalibrate = ({ imagePath }) => {
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
 
-  const DISPLAY_WIDTH = 800; // Fixed display width in pixels
-
   const [calibrationType, setCalibrationType] = useState(null); // 'new' or 'existing'
   const [magnification, setMagnification] = useState('100x');
   const [existingCalibrations, setExistingCalibrations] = useState({});
   const [selectedExistingCalibration, setSelectedExistingCalibration] = useState(null);
+
+  // Add resolution state
+  const [resolution, setResolution] = useState({ width: 1920, height: 1080 });
+
+  // Add useEffect to load camera settings
+  useEffect(() => {
+    const loadCameraSettings = () => {
+      const savedSettings = localStorage.getItem('cameraSettings');
+      if (savedSettings) {
+        try {
+          const settings = JSON.parse(savedSettings);
+          const [width, height] = settings.resolution.split('x').map(Number);
+          setResolution({ width, height });
+        } catch (error) {
+          console.error('Error loading camera settings:', error);
+        }
+      }
+    };
+
+    loadCameraSettings();
+    // Listen for changes in camera settings
+    window.addEventListener('storage', loadCameraSettings);
+    return () => window.removeEventListener('storage', loadCameraSettings);
+  }, []);
 
   // Add reset calibration function
   const resetCalibration = () => {
@@ -40,21 +62,20 @@ const CameraCalibrate = ({ imagePath }) => {
     setCurrentMeasurement(null);
   };
 
-  // Modified initializeCanvas
+  // Modify initializeCanvas to draw image without scaling
   const initializeCanvas = (img) => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Set canvas size to match camera resolution
+    canvas.width = resolution.width;
+    canvas.height = resolution.height;
+
     const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Set canvas size to fixed display dimensions
-    const displayHeight = (img.height / img.width) * DISPLAY_WIDTH;
-    canvas.width = DISPLAY_WIDTH;
-    canvas.height = displayHeight;
-    
-    // Draw scaled image
-    ctx.drawImage(img, 0, 0, DISPLAY_WIDTH, displayHeight);
-    
-    // Draw scale markers
-    drawScaleMarkers(ctx, DISPLAY_WIDTH, displayHeight);
+    // Draw image at full resolution
+    ctx.drawImage(img, 0, 0, resolution.width, resolution.height);
   };
 
   // Modify drawScaleMarkers to show calibrated values
@@ -100,12 +121,14 @@ const CameraCalibrate = ({ imagePath }) => {
     }
   };
 
-  // Modified mouse event handlers to account for scaling
+  // Modify getScaledCoordinates to get actual coordinates
   const getScaledCoordinates = (clientX, clientY) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = (clientX - rect.left);
-    const y = (clientY - rect.top);
+    
+    // Convert click coordinates to canvas coordinates
+    const x = (clientX - rect.left) * (canvas.width / rect.width);
+    const y = (clientY - rect.top) * (canvas.height / rect.height);
     return { x, y };
   };
 
@@ -135,23 +158,18 @@ const CameraCalibrate = ({ imagePath }) => {
     });
   };
 
+  // Simplify handleMouseMove
   const handleMouseMove = (e) => {
     if (!isDrawing) return;
     
-    const { x } = getScaledCoordinates(e.clientX, e.clientY);
-    // Keep y coordinate same as start point for horizontal line
+    const coords = getScaledCoordinates(e.clientX, e.clientY);
     setCalibrationLine(prev => ({
         ...prev,
         end: { 
-            x: x,  // Update only x coordinate
-            y: prev.start.y  // Keep y coordinate same as start point
+        x: coords.x,
+        y: prev.start.y // Keep y coordinate same as start point
         }
     }));
-
-    // Redraw canvas
-    const ctx = canvasRef.current.getContext('2d');
-    drawImage();
-    drawLine(ctx);
   };
 
   const handleMouseUp = () => {
@@ -281,7 +299,22 @@ const CameraCalibrate = ({ imagePath }) => {
     return originalDistance;
   };
 
-  // Modify the drawing useEffect for lines
+  // Update the image loading effect
+  useEffect(() => {
+    if (imagePath) {
+      const img = new Image();
+      img.onload = () => {
+        // Store original dimensions
+        setOriginalDimensions({ width: img.width, height: img.height });
+        setImage(img);
+        imageRef.current = img;
+        initializeCanvas(img);
+      };
+      img.src = `http://localhost:5000/api/get-image?path=${encodeURIComponent(imagePath)}`;
+    }
+  }, [imagePath, resolution]); // Add resolution to dependencies
+
+  // Update the redraw effect
   useEffect(() => {
     if (!canvasRef.current || !image) return;
     
@@ -290,89 +323,54 @@ const CameraCalibrate = ({ imagePath }) => {
     
     // Clear and redraw image
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const displayHeight = (image.height / image.width) * DISPLAY_WIDTH;
-    ctx.drawImage(imageRef.current, 0, 0, DISPLAY_WIDTH, displayHeight);
+    ctx.drawImage(image, 0, 0, resolution.width, resolution.height);
     
-    // Draw pixel dimensions
-    ctx.strokeStyle = '#333';
-    ctx.fillStyle = '#333';
-    ctx.font = '12px Arial';
-    
-    // Draw original image dimensions
-    const originalWidth = Math.round(originalDimensions.width);
-    const originalHeight = Math.round(originalDimensions.height);
-    
+    // Draw dimensions info
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(10, 10, 200, 45);
+    ctx.fillRect(10, 10, 200, 30);
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '12px Arial';
     ctx.textAlign = 'left';
-    ctx.fillText(`Original: ${originalWidth} × ${originalHeight} px`, 20, 30);
-    ctx.fillText(`Display: ${Math.round(DISPLAY_WIDTH)} × ${Math.round(displayHeight)} px`, 20, 45);
+    ctx.fillText(`Resolution: ${resolution.width} × ${resolution.height} px`, 20, 30);
 
-    // Draw scale bar if calibrated
-    if (realScale.x) {
-      drawScaleBar(ctx, canvas.width, canvas.height);
-    }
-    
-    // Draw all saved lines
-    lines.forEach(line => {
-      ctx.beginPath();
-      ctx.strokeStyle = '#00FF00';
-      ctx.lineWidth = 2;
-      ctx.moveTo(line.start.x, line.start.y);
-      ctx.lineTo(line.end.x, line.end.y);
-      ctx.stroke();
-
-      // Draw measurement label with real units and original pixels
-      const midX = (line.start.x + line.end.x) / 2;
-      const midY = (line.start.y + line.end.y) / 2;
-      ctx.fillStyle = '#00FF00';
-      ctx.font = '14px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(
-        `${line.measurement.toFixed(2)} ${line.unit} (${Math.round(line.pixelDistance)} px)`, 
-        midX + 10, 
-        midY - 10
-      );
-    });
-    
-    // Draw current calibration line with original pixel length
+    // Draw calibration line with perpendicular ends
     if (calibrationLine.start && calibrationLine.end) {
+      // Draw main horizontal line
       ctx.beginPath();
-      ctx.strokeStyle = '#FF0000';
-      ctx.lineWidth = 2;
       ctx.moveTo(calibrationLine.start.x, calibrationLine.start.y);
-      ctx.lineTo(calibrationLine.end.x, calibrationLine.end.y);
+      ctx.lineTo(calibrationLine.end.x, calibrationLine.start.y);
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Calculate and show original pixel distance while drawing
-      const pixelDistance = calculatePixelDistance(calibrationLine.start, calibrationLine.end);
-      if (pixelDistance) {
-        const midX = (calibrationLine.start.x + calibrationLine.end.x) / 2;
-        const midY = (calibrationLine.start.y + calibrationLine.end.y) / 2;
-        ctx.fillStyle = '#FF0000';
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'left';
-        
-        // Show real measurement if calibrated
-        if (currentMeasurement) {
-          ctx.fillText(
-            `${currentMeasurement} ${unit} (${Math.round(pixelDistance)} px)`, 
-            midX + 10, 
-            midY - 10
-          );
-        } else {
-          // Show only original pixels if not calibrated yet
-          ctx.fillText(
-            `${Math.round(pixelDistance)} px`, 
-            midX + 10, 
-            midY - 10
-          );
-        }
-      }
+      // Draw perpendicular lines at endpoints
+      const perpLength = 10; // Length of perpendicular lines
+
+      // Left perpendicular line
+      ctx.beginPath();
+      ctx.moveTo(calibrationLine.start.x, calibrationLine.start.y - perpLength);
+      ctx.lineTo(calibrationLine.start.x, calibrationLine.start.y + perpLength);
+      ctx.stroke();
+
+      // Right perpendicular line
+      ctx.beginPath();
+      ctx.moveTo(calibrationLine.end.x, calibrationLine.start.y - perpLength);
+      ctx.lineTo(calibrationLine.end.x, calibrationLine.start.y + perpLength);
+      ctx.stroke();
+
+      // Draw measurement
+      const pixelDistance = Math.abs(calibrationLine.end.x - calibrationLine.start.x);
+      const midX = (calibrationLine.start.x + calibrationLine.end.x) / 2;
+      const midY = calibrationLine.start.y - 20;
+      
+      ctx.fillStyle = 'black';
+      ctx.fillRect(midX - 40, midY - 15, 80, 20);
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${Math.round(pixelDistance)} px`, midX, midY);
     }
-  }, [image, calibrationLine, lines, currentMeasurement, unit, realScale, originalDimensions]);
+
+  }, [image, calibrationLine, resolution]);
 
   // Add unit conversion helper
   const convertUnits = (value, fromUnit, toUnit) => {
@@ -532,171 +530,154 @@ const CameraCalibrate = ({ imagePath }) => {
     </div>
   );
 
-  // Modify the ExistingCalibrations component
-  const ExistingCalibrations = () => (
-    <div className="mb-8 bg-white p-6 rounded-xl shadow-md">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-xl font-semibold text-gray-800">Select Existing Calibration</h3>
-        <button
-          onClick={() => setCalibrationType(null)}
-          className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 
-            hover:bg-gray-100 rounded-lg transition-all duration-200"
-        >
-          ← Back to Selection
-        </button>
-      </div>
-      
-      {Object.entries(existingCalibrations).length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          <p>No saved calibrations found.</p>
-          <button
-            onClick={() => setCalibrationType('new')}
-            className="mt-4 px-6 py-2 bg-blue-500 text-white rounded-lg 
-              hover:bg-blue-600 transition-all duration-200"
-          >
-            Create New Calibration
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {Object.entries(existingCalibrations).map(([mag, calibration]) => (
-            <div
-              key={mag}
-              className={`p-4 rounded-lg border transition-all duration-200 
-                ${selectedExistingCalibration?.magnification === mag
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200'
-                }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-grow">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-lg font-semibold text-gray-800">{mag}</h4>
-                    {selectedExistingCalibration?.magnification === mag && (
-                      <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                        Selected
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-2 space-y-1">
-                    <p className="text-sm text-gray-600">
-                      Scale: {calibration.calibrationFactor.toFixed(4)} pixels/{calibration.unit}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Last updated: {new Date(calibration.timestamp).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleSelectExistingCalibration(calibration)}
-                    className={`px-4 py-2 rounded-lg transition-all duration-200 
-                      ${selectedExistingCalibration?.magnification === mag
-                        ? 'bg-green-500 text-white hover:bg-green-600'
-                        : 'bg-blue-500 text-white hover:bg-blue-600'
-                      }`}
-                  >
-                    {selectedExistingCalibration?.magnification === mag ? 'Selected' : 'Use'}
-                  </button>
+  // Modify the ExistingCalibrations component to show more details
+  const ExistingCalibrations = () => {
+    return (
+      <div className="space-y-6">
+        {Object.entries(existingCalibrations).map(([mag, calibration]) => (
+          <div key={mag} className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+            <div className="flex justify-between items-start">
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-gray-700">{mag}</h3>
+                <div className="space-y-1 text-sm">
+                  <p className="text-gray-600">
+                    <span className="font-medium">Scale Factor:</span>{' '}
+                    {calibration.calibrationFactor.toFixed(4)} pixels/micron
+                  </p>
+                  <p className="text-gray-600">
+                    <span className="font-medium">Resolution:</span>{' '}
+                    {(1/calibration.calibrationFactor).toFixed(4)} microns/pixel
+                  </p>
+                  <p className="text-gray-600">
+                    <span className="font-medium">Calibrated:</span>{' '}
+                    {new Date(calibration.timestamp).toLocaleString()}
+                  </p>
                 </div>
               </div>
-              {selectedExistingCalibration?.magnification === mag && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white p-3 rounded-lg shadow-sm">
-                      <p className="text-sm text-gray-600">Resolution</p>
-                      <p className="font-medium">
-                        {(1/calibration.calibrationFactor).toFixed(4)} {calibration.unit}/pixel
-                      </p>
-                    </div>
-                    <div className="bg-white p-3 rounded-lg shadow-sm">
-                      <p className="text-sm text-gray-600">Unit</p>
-                      <p className="font-medium">{calibration.unit}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <button
+                onClick={() => handleUseCalibration(calibration)}
+                className={`px-4 py-2 rounded-lg transition-all duration-200
+                  ${selectedExistingCalibration?.timestamp === calibration.timestamp 
+                    ? 'bg-green-100 text-green-700 border border-green-300' 
+                    : 'bg-blue-500 text-white hover:bg-blue-600'}`}
+              >
+                {selectedExistingCalibration?.timestamp === calibration.timestamp ? 'In Use' : 'Use'}
+              </button>
             </div>
-          ))}
-        </div>
-      )}
-      
-      {selectedExistingCalibration && (
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <div className="flex justify-between items-center">
-            <div>
-              <h4 className="font-semibold text-gray-800">Selected Calibration</h4>
-              <p className="text-sm text-gray-600">
-                {selectedExistingCalibration.magnification} - 
-                {selectedExistingCalibration.calibrationFactor.toFixed(4)} pixels/{selectedExistingCalibration.unit}
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setCanDrawLine(true);
-                setCalibrationType('new');
-              }}
-              className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg
-                hover:bg-gray-200 transition-all duration-200"
-            >
-              Create New Instead
-            </button>
           </div>
-        </div>
-      )}
-    </div>
-  );
+        ))}
+      </div>
+    );
+  };
 
-  useEffect(() => {
-    if (imagePath) {
-      const img = new Image();
-      img.onload = () => {
-        // Store original dimensions
-        setOriginalDimensions({ width: img.width, height: img.height });
-        
-        // Calculate scale factor
-        const newScaleFactor = DISPLAY_WIDTH / img.width;
-        setScaleFactor(newScaleFactor);
-        
-        setImage(img);
-        imageRef.current = img;
-        initializeCanvas(img);
-      };
-      img.src = `http://localhost:5000/api/get-image?path=${encodeURIComponent(imagePath)}`;
+  // Update handleUseCalibration function
+  const handleUseCalibration = (calibration) => {
+    // Save the selected calibration to localStorage
+    localStorage.setItem('currentCalibration', JSON.stringify({
+      magnification: calibration.magnification,
+      calibrationFactor: calibration.calibrationFactor,
+      unit: calibration.unit,
+      timestamp: calibration.timestamp
+    }));
+
+    // Update UI state
+    setSelectedExistingCalibration(calibration);
+    setRealScale({ 
+      x: calibration.calibrationFactor,
+      y: calibration.calibrationFactor 
+    });
+
+    // Force a storage event to notify other components
+    window.dispatchEvent(new Event('storage'));
+
+    // Close calibration dialog or update UI as needed
+    setCalibrationType(null);
+  };
+
+  // Add delete calibration handler
+  const handleDeleteCalibration = (magnification) => {
+    if (window.confirm(`Are you sure you want to delete the ${magnification} calibration?`)) {
+      // Remove from localStorage
+      const updatedCalibrations = { ...existingCalibrations };
+      delete updatedCalibrations[magnification];
+      localStorage.setItem('calibrations', JSON.stringify(updatedCalibrations));
+      setExistingCalibrations(updatedCalibrations);
+
+      // If this was the selected calibration, clear it
+      if (selectedExistingCalibration?.magnification === magnification) {
+        setSelectedExistingCalibration(null);
+        localStorage.removeItem('currentCalibration');
+      }
     }
-  }, [imagePath]); // Update when imagePath changes
+  };
 
   const drawLine = (ctx) => {
     if (calibrationLine.start && calibrationLine.end) {
-        ctx.beginPath();
-        ctx.moveTo(
-            calibrationLine.start.x * scaleFactor,
-            calibrationLine.start.y * scaleFactor
-        );
-        ctx.lineTo(
-            calibrationLine.end.x * scaleFactor,
-            calibrationLine.start.y * scaleFactor  // Use start.y for horizontal line
-        );
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+      // Draw main horizontal line
+      ctx.beginPath();
+      ctx.moveTo(calibrationLine.start.x, calibrationLine.start.y);
+      ctx.lineTo(calibrationLine.end.x, calibrationLine.start.y);
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
-        // Draw endpoints
-        ctx.fillStyle = 'red';
-        ctx.beginPath();
-        ctx.arc(
-            calibrationLine.start.x * scaleFactor,
-            calibrationLine.start.y * scaleFactor,
-            4, 0, 2 * Math.PI
-        );
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(
-            calibrationLine.end.x * scaleFactor,
-            calibrationLine.start.y * scaleFactor,  // Use start.y for horizontal line
-            4, 0, 2 * Math.PI
-        );
-        ctx.fill();
+      // Draw perpendicular lines at endpoints
+      const perpLength = 10; // Length of perpendicular lines
+
+      // Left perpendicular line
+      ctx.beginPath();
+      ctx.moveTo(calibrationLine.start.x, calibrationLine.start.y - perpLength);
+      ctx.lineTo(calibrationLine.start.x, calibrationLine.start.y + perpLength);
+      ctx.stroke();
+
+      // Right perpendicular line
+      ctx.beginPath();
+      ctx.moveTo(calibrationLine.end.x, calibrationLine.start.y - perpLength);
+      ctx.lineTo(calibrationLine.end.x, calibrationLine.start.y + perpLength);
+      ctx.stroke();
+
+      // Draw pixel distance
+      const pixelDistance = Math.abs(calibrationLine.end.x - calibrationLine.start.x);
+      const midX = (calibrationLine.start.x + calibrationLine.end.x) / 2;
+      const midY = calibrationLine.start.y - 20;
+
+      ctx.fillStyle = 'black';
+      ctx.fillRect(midX - 40, midY - 15, 80, 20);
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.font = '14px Arial';
+      ctx.fillText(`${Math.round(pixelDistance)} px`, midX, midY);
+    }
+  };
+
+  const handleCalibrate = () => {
+    if (measurementValue && calibrationLine.start && calibrationLine.end) {
+      const pixelDistance = Math.abs(calibrationLine.end.x - calibrationLine.start.x);
+      // Calculate pixels per micron (if 40px = 10 microns, then pixels/micron = 40/10 = 4)
+      const pixelsPerMicron = pixelDistance / measurementValue;
+      
+      const calibrationData = {
+        magnification,
+        calibrationFactor: pixelsPerMicron, // pixels per micron
+        unit: 'microns',
+        timestamp: new Date().getTime(),
+        notes: `${pixelsPerMicron.toFixed(4)} pixels = 1 micron`
+      };
+
+      // Save to localStorage
+      const existingCalibrations = JSON.parse(localStorage.getItem('calibrations') || '{}');
+      existingCalibrations[magnification] = calibrationData;
+      localStorage.setItem('calibrations', JSON.stringify(existingCalibrations));
+      
+      // Update state
+      setExistingCalibrations(existingCalibrations);
+      setRealScale({ 
+        x: pixelsPerMicron,
+        y: pixelsPerMicron 
+      });
+
+      // Save as current calibration
+      localStorage.setItem('currentCalibration', JSON.stringify(calibrationData));
     }
   };
 

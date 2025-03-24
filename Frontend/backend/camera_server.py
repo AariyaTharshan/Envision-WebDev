@@ -16,9 +16,15 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'M
 from MvCameraControl_class import *
 from ctypes import c_float, byref
 import imghdr  # For image type verification
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+import atexit
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000", "http://localhost:5173"], "methods": ["GET", "POST", "OPTIONS"], "headers": ["Content-Type"]}})
+
+# Global observer for file system events
+observer = None
 
 class WebcamManager:
     def __init__(self):
@@ -423,7 +429,7 @@ def take_snapshot():
         return jsonify({
             'status': 'error',
             'message': str(e)
-        })
+        }), 500
 
 @app.route('/api/get-image')
 def get_image():
@@ -1638,6 +1644,73 @@ def delete_image():
             'status': 'error',
             'message': str(e)
         }), 500
+
+@app.route('/api/thumbnail', methods=['GET'])
+def get_thumbnail():
+    try:
+        image_path = request.args.get('path')
+        if not image_path or not os.path.exists(image_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Send the file directly
+        return send_file(image_path, mimetype='image/jpeg')
+
+    except Exception as e:
+        print(f"Error serving thumbnail: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/watch-folder', methods=['POST'])
+def watch_folder():
+    global observer
+    
+    try:
+        data = request.get_json()
+        folder_path = data.get('path')
+        
+        if not folder_path or not os.path.exists(folder_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid folder path'
+            }), 400
+
+        # Stop existing observer if any
+        if observer:
+            observer.stop()
+            observer.join()
+
+        # Create new observer
+        observer = Observer()
+        handler = ImageFolderHandler()
+        observer.schedule(handler, folder_path, recursive=False)
+        observer.start()
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Folder watch started'
+        })
+
+    except Exception as e:
+        print(f"Error setting up folder watch: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+# Make sure to stop the observer when the server shuts down
+def cleanup():
+    global observer
+    if observer:
+        observer.stop()
+        observer.join()
+
+import atexit
+atexit.register(cleanup)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, threaded=True) 

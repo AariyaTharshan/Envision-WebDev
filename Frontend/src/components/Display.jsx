@@ -38,6 +38,9 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
   // Add these new states at the top of the component
   const [eraserRadius, setEraserRadius] = useState(15);
 
+  // Add state for calibration
+  const [currentCalibration, setCurrentCalibration] = useState(null);
+
   // Load calibration data when component mounts
   useEffect(() => {
     const loadCalibration = () => {
@@ -287,7 +290,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseMove: (coords) => {
         if (isDrawing) {
           requestAnimationFrame(() => {
-            eraseAtPoint(coords);
+          eraseAtPoint(coords);
           });
         }
       },
@@ -563,10 +566,28 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     }
   }, [selectedTool]);
 
-  // Convert pixels to microns
+  // Load calibration when component mounts
+  useEffect(() => {
+    const loadCalibration = () => {
+      const savedCalibration = localStorage.getItem('currentCalibration');
+      if (savedCalibration) {
+        const calibData = JSON.parse(savedCalibration);
+        setCurrentCalibration(calibData);
+        console.log('Loaded calibration:', calibData); // For debugging
+      }
+    };
+
+    loadCalibration();
+    // Listen for calibration changes
+    window.addEventListener('storage', loadCalibration);
+    return () => window.removeEventListener('storage', loadCalibration);
+  }, []);
+
+  // Helper function to convert pixels to microns
   const pixelsToMicrons = (pixels) => {
-    if (!calibrationFactor) return pixels;
-    return pixels * calibrationFactor;
+    if (!currentCalibration?.calibrationFactor) return pixels;
+    // Divide pixels by pixels/micron to get microns
+    return pixels / currentCalibration.calibrationFactor;
   };
 
   // Update mouse event handlers
@@ -613,9 +634,9 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
 
   // Drawing function
   const drawShape = (ctx, shape) => {
-    ctx.strokeStyle = '#00ff00'; // Bright green for better visibility
+    ctx.strokeStyle = '#00ff00';
     ctx.lineWidth = 2;
-    ctx.fillStyle = 'rgba(0, 255, 0, 0.2)'; // Semi-transparent green
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
     ctx.font = '14px Arial';
     ctx.textBaseline = 'top';
 
@@ -632,62 +653,118 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         ctx.fillText('Point', shape.x + 15, shape.y - 15);
         break;
 
-      case 'line':
+      case 'line': {
+        // Draw main line
         ctx.beginPath();
         ctx.moveTo(shape.start.x, shape.start.y);
         ctx.lineTo(shape.end.x, shape.end.y);
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 2;
         ctx.stroke();
-        
-        // Calculate distance and display
-        const distance = Math.sqrt(
+
+        // Draw perpendicular lines at endpoints
+        const perpLength = 10; // Length of perpendicular lines
+        const angle = Math.atan2(shape.end.y - shape.start.y, shape.end.x - shape.start.x);
+        const perpAngle = angle + Math.PI/2;
+
+        // Start point perpendicular line
+        ctx.beginPath();
+        ctx.moveTo(
+          shape.start.x + Math.cos(perpAngle) * perpLength,
+          shape.start.y + Math.sin(perpAngle) * perpLength
+        );
+        ctx.lineTo(
+          shape.start.x - Math.cos(perpAngle) * perpLength,
+          shape.start.y - Math.sin(perpAngle) * perpLength
+        );
+        ctx.stroke();
+
+        // End point perpendicular line
+        ctx.beginPath();
+        ctx.moveTo(
+          shape.end.x + Math.cos(perpAngle) * perpLength,
+          shape.end.y + Math.sin(perpAngle) * perpLength
+        );
+        ctx.lineTo(
+          shape.end.x - Math.cos(perpAngle) * perpLength,
+          shape.end.y - Math.sin(perpAngle) * perpLength
+        );
+        ctx.stroke();
+
+        // Calculate and display measurement
+        const pixelDistance = Math.sqrt(
           Math.pow(shape.end.x - shape.start.x, 2) + 
           Math.pow(shape.end.y - shape.start.y, 2)
         );
+        
+        // Convert to microns using calibration factor
+        const micronsDistance = pixelsToMicrons(pixelDistance);
+
+        // Display measurement
         const midX = (shape.start.x + shape.end.x) / 2;
         const midY = (shape.start.y + shape.end.y) / 2;
-        
-        const distanceMicrons = pixelsToMicrons(distance);
         
         ctx.fillStyle = 'black';
         ctx.fillRect(midX - 50, midY - 25, 100, 20);
         ctx.fillStyle = 'white';
-        ctx.fillText(`${distanceMicrons.toFixed(1)}µm`, midX - 45, midY - 20);
+        ctx.textAlign = 'center';
+        ctx.fillText(
+          `${micronsDistance.toFixed(2)} µm`, 
+          midX, 
+          midY - 15
+        );
         break;
+      }
 
-      case 'rectangle':
-        const width = shape.end.x - shape.start.x;
-        const height = shape.end.y - shape.start.y;
+      case 'rectangle': {
+        const width = Math.abs(shape.end.x - shape.start.x);
+        const height = Math.abs(shape.end.y - shape.start.y);
+        
+        // Draw rectangle
         ctx.beginPath();
         ctx.rect(shape.start.x, shape.start.y, width, height);
         ctx.fill();
         ctx.stroke();
-        
-        const widthMicrons = pixelsToMicrons(Math.abs(width));
-        const heightMicrons = pixelsToMicrons(Math.abs(height));
+
+        // Calculate measurements in microns
+        const widthMicrons = pixelsToMicrons(width);
+        const heightMicrons = pixelsToMicrons(height);
         const areaMicrons = widthMicrons * heightMicrons;
+
+        // Display measurements
+        const centerX = shape.start.x + width/2;
+        const centerY = shape.start.y + height/2;
         
         ctx.fillStyle = 'black';
-        ctx.fillRect(shape.start.x + width/2 - 60, shape.start.y + height/2 - 25, 120, 40);
+        ctx.fillRect(centerX - 60, centerY - 35, 120, 70);
         ctx.fillStyle = 'white';
-        ctx.fillText(`W: ${widthMicrons.toFixed(1)}µm`, shape.start.x + width/2 - 55, shape.start.y + height/2 - 20);
-        ctx.fillText(`H: ${heightMicrons.toFixed(1)}µm`, shape.start.x + width/2 - 55, shape.start.y + height/2 - 5);
+        ctx.font = '14px Arial';
+        ctx.fillText(`W: ${widthMicrons.toFixed(1)} µm`, centerX - 55, centerY - 25);
+        ctx.fillText(`H: ${heightMicrons.toFixed(1)} µm`, centerX - 55, centerY);
+        ctx.fillText(`A: ${areaMicrons.toFixed(1)} µm²`, centerX - 55, centerY + 25);
         break;
+      }
 
-      case 'circle':
+      case 'circle': {
+        // Draw circle
         ctx.beginPath();
         ctx.arc(shape.center.x, shape.center.y, shape.radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-        
+
+        // Calculate measurements in microns
         const radiusMicrons = pixelsToMicrons(shape.radius);
-        const areaMicronsCircle = Math.PI * radiusMicrons * radiusMicrons;
-        
+        const areaMicrons = Math.PI * radiusMicrons * radiusMicrons;
+
+        // Display measurements
         ctx.fillStyle = 'black';
-        ctx.fillRect(shape.center.x - 55, shape.center.y - 25, 110, 40);
+        ctx.fillRect(shape.center.x - 55, shape.center.y - 35, 110, 50);
         ctx.fillStyle = 'white';
-        ctx.fillText(`R: ${radiusMicrons.toFixed(1)}µm`, shape.center.x - 50, shape.center.y - 20);
-        ctx.fillText(`A: ${areaMicronsCircle.toFixed(1)}µm²`, shape.center.x - 50, shape.center.y - 5);
+        ctx.font = '14px Arial';
+        ctx.fillText(`R: ${radiusMicrons.toFixed(1)} µm`, shape.center.x - 50, shape.center.y - 20);
+        ctx.fillText(`A: ${areaMicrons.toFixed(1)} µm²`, shape.center.x - 50, shape.center.y + 5);
         break;
+      }
 
       case 'curve':
       case 'closedCurve':
