@@ -6,7 +6,7 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath, onFolderChange 
   const [location, setLocation] = useState('C:\\Users\\Public\\MicroScope_Images');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const magnificationOptions = ['50x', '100x', '200x', '500x', '1000x'];
+  const magnificationOptions = ['50x', '100x', '200x'];
 
   const handleRecord = async () => {
     try {

@@ -360,7 +360,7 @@ const CameraCalibrate = ({ imagePath }) => {
 
       // Draw measurement
       const pixelDistance = Math.abs(calibrationLine.end.x - calibrationLine.start.x);
-      const midX = (calibrationLine.start.x + calibrationLine.end.x) / 2;
+        const midX = (calibrationLine.start.x + calibrationLine.end.x) / 2;
       const midY = calibrationLine.start.y - 20;
       
       ctx.fillStyle = 'black';
@@ -534,7 +534,7 @@ const CameraCalibrate = ({ imagePath }) => {
   const ExistingCalibrations = () => {
     return (
       <div className="space-y-6">
-        {Object.entries(existingCalibrations).map(([mag, calibration]) => (
+          {Object.entries(existingCalibrations).map(([mag, calibration]) => (
           <div key={mag} className="bg-gray-50 p-6 rounded-xl border border-gray-200">
             <div className="flex justify-between items-start">
               <div className="space-y-2">
@@ -551,23 +551,23 @@ const CameraCalibrate = ({ imagePath }) => {
                   <p className="text-gray-600">
                     <span className="font-medium">Calibrated:</span>{' '}
                     {new Date(calibration.timestamp).toLocaleString()}
-                  </p>
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <button
+                  <button
                 onClick={() => handleUseCalibration(calibration)}
-                className={`px-4 py-2 rounded-lg transition-all duration-200
+                    className={`px-4 py-2 rounded-lg transition-all duration-200 
                   ${selectedExistingCalibration?.timestamp === calibration.timestamp 
                     ? 'bg-green-100 text-green-700 border border-green-300' 
                     : 'bg-blue-500 text-white hover:bg-blue-600'}`}
               >
                 {selectedExistingCalibration?.timestamp === calibration.timestamp ? 'In Use' : 'Use'}
-              </button>
+                  </button>
+                </div>
             </div>
-          </div>
-        ))}
-      </div>
-    );
+          ))}
+    </div>
+  );
   };
 
   // Update handleUseCalibration function
@@ -614,24 +614,24 @@ const CameraCalibrate = ({ imagePath }) => {
   const drawLine = (ctx) => {
     if (calibrationLine.start && calibrationLine.end) {
       // Draw main horizontal line
-      ctx.beginPath();
+        ctx.beginPath();
       ctx.moveTo(calibrationLine.start.x, calibrationLine.start.y);
       ctx.lineTo(calibrationLine.end.x, calibrationLine.start.y);
-      ctx.strokeStyle = 'red';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
       // Draw perpendicular lines at endpoints
       const perpLength = 10; // Length of perpendicular lines
 
       // Left perpendicular line
-      ctx.beginPath();
+        ctx.beginPath();
       ctx.moveTo(calibrationLine.start.x, calibrationLine.start.y - perpLength);
       ctx.lineTo(calibrationLine.start.x, calibrationLine.start.y + perpLength);
       ctx.stroke();
 
       // Right perpendicular line
-      ctx.beginPath();
+        ctx.beginPath();
       ctx.moveTo(calibrationLine.end.x, calibrationLine.start.y - perpLength);
       ctx.lineTo(calibrationLine.end.x, calibrationLine.start.y + perpLength);
       ctx.stroke();

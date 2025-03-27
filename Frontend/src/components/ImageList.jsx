@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FaTrash } from 'react-icons/fa';
+import { FaTrash, FaChevronUp } from 'react-icons/fa';
 
 const ImageList = ({ currentPath, onSelectImage, onDeleteImage }) => {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Add polling interval state (default 5 seconds)
   const POLL_INTERVAL = 5000;
@@ -151,56 +152,89 @@ const ImageList = ({ currentPath, onSelectImage, onDeleteImage }) => {
     else return (bytes / 1048576).toFixed(1) + ' MB';
   };
 
+  // Add a helper function to get filename without extension
+  const getFileNameWithoutExtension = (filename) => {
+    return filename.replace(/\.[^/.]+$/, '');
+  };
+
   return (
-    <div className="bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
-      <div className="p-3 bg-gray-50 border-b border-gray-200">
-        <h3 className="text-sm font-medium text-gray-700">Image Gallery</h3>
-      </div>
-      
-      <div className="overflow-x-auto overflow-y-hidden" style={{ height: 'calc(280px - 48px)' }}>
-        <div className="flex gap-4 p-4 min-w-max">
-          {loading ? (
-            <div className="flex items-center justify-center p-4 w-full">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
-            </div>
-          ) : images.length === 0 ? (
-            <div className="text-center py-4 text-gray-500 w-full">
-              No images found in this folder
-            </div>
-          ) : (
-            images.map((image) => (
-              <div
-                key={image.path}
-                onClick={() => handleImageClick(image)}
-                className={`flex flex-col items-center p-2 rounded-lg cursor-pointer transition-all
-                  ${selectedImage === image.path ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50'}
-                  border border-gray-200 w-[120px] flex-shrink-0`}
-              >
-                <div className="relative w-[100px] h-[100px] mb-2">
-                  <img
-                    src={image.thumbnail}
-                    alt={image.name}
-                    className="w-full h-full object-cover rounded"
-                    loading="lazy"
-                  />
-                  <button
-                    onClick={(e) => handleDeleteClick(image, e)}
-                    className="absolute top-1 right-1 p-1 bg-white bg-opacity-75 text-gray-600 
-                      hover:text-red-500 rounded-full hover:bg-red-50"
-                    title="Delete image"
-                  >
-                    <FaTrash className="w-3 h-3" />
-                  </button>
-                </div>
-                <p className="text-xs text-gray-900 truncate w-full text-center">
-                  {image.name}
-                </p>
+    <>
+      {/* Fixed Arrow Button at bottom */}
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="fixed bottom-0 right-1/2 transform translate-x-1/2 z-50 
+          bg-white rounded-t-lg px-6 py-2 shadow-lg
+          hover:bg-gray-50 transition-all duration-200 
+          border border-gray-200 border-b-0
+          flex items-center gap-2 group"
+      >
+        <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">
+          Image Gallery
+        </span>
+        <FaChevronUp 
+          className={`transition-transform duration-300 text-gray-500 group-hover:text-gray-700
+            ${isCollapsed ? 'rotate-0' : 'rotate-180'}`}
+        />
+      </button>
+
+      {/* Image Gallery Container */}
+      <div
+        className={`fixed left-6 right-6 bottom-12 z-40 
+          transition-all duration-300 ease-in-out
+          ${isCollapsed ? 'translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}
+      >
+        <div className="bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
+          <div className="h-[280px]">
+            <div className="overflow-x-auto overflow-y-hidden h-full">
+              <div className="flex gap-4 p-4 min-w-max">
+                {loading ? (
+                  <div className="flex items-center justify-center p-4 w-full">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+                  </div>
+                ) : images.length === 0 ? (
+                  <div className="text-center py-4 text-gray-500 w-full">
+                    No images found in this folder
+                  </div>
+                ) : (
+                  images.map((image) => (
+                    <div
+                      key={image.path}
+                      onClick={() => handleImageClick(image)}
+                      className={`flex flex-col items-center p-2 rounded-lg cursor-pointer 
+                        transition-all duration-200
+                        ${selectedImage === image.path 
+                          ? 'bg-blue-50 border-blue-300 shadow-sm' 
+                          : 'hover:bg-gray-50 border-gray-200'}
+                        border w-[200px] flex-shrink-0`}
+                    >
+                      <div className="relative w-[160px] h-[160px] mb-2">
+                        <img
+                          src={image.thumbnail}
+                          alt={getFileNameWithoutExtension(image.name)}
+                          className="w-full h-full object-cover rounded"
+                          loading="lazy"
+                        />
+                        <button
+                          onClick={(e) => handleDeleteClick(image, e)}
+                          className="absolute top-1 right-1 p-1 bg-white bg-opacity-75 text-gray-600 
+                            hover:text-red-500 rounded-full hover:bg-red-50"
+                          title="Delete image"
+                        >
+                          <FaTrash className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-900 break-words w-full text-center px-1">
+                        {getFileNameWithoutExtension(image.name)}
+                      </p>
+                    </div>
+                  ))
+                )}
               </div>
-            ))
-          )}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

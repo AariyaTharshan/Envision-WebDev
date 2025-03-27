@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import CameraCalibrate from "./CameraCalibrate";
 import CameraConfiguration from "./CameraConfiguration";
-import Porosity from './Porosity';
+import Porosity from './PorosityAnalysis';
 
 const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
   const [activeDropdown, setActiveDropdown] = useState(null);

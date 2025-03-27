@@ -113,7 +113,7 @@ const Toolbar = ({ onSelectTool, selectedTool, measurementData, onClearShapes })
                     </div>
                   </div>
                 )}
-              </div>
+          </div>
             </div>
           </div>
         </div>

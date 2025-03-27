@@ -511,7 +511,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
             if (distance <= eraserRadius) return false;
           }
           return true;
-        }
+      }
 
         case 'arc': {
           // Check if point is near the arc line
@@ -655,13 +655,13 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
 
       case 'line': {
         // Draw main line
+        ctx.strokeStyle = '#00ff00'; // Bright green
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(shape.start.x, shape.start.y);
         ctx.lineTo(shape.end.x, shape.end.y);
-        ctx.strokeStyle = '#00ff00';
-        ctx.lineWidth = 2;
         ctx.stroke();
-
+        
         // Draw perpendicular lines at endpoints
         const perpLength = 10; // Length of perpendicular lines
         const angle = Math.atan2(shape.end.y - shape.start.y, shape.end.x - shape.start.x);
@@ -697,22 +697,32 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
           Math.pow(shape.end.y - shape.start.y, 2)
         );
         
-        // Convert to microns using calibration factor
         const micronsDistance = pixelsToMicrons(pixelDistance);
 
-        // Display measurement
+        // Display measurement with better visibility
         const midX = (shape.start.x + shape.end.x) / 2;
         const midY = (shape.start.y + shape.end.y) / 2;
         
-        ctx.fillStyle = 'black';
-        ctx.fillRect(midX - 50, midY - 25, 100, 20);
-        ctx.fillStyle = 'white';
+        // Set up text first to measure it
+        ctx.font = 'bold 14px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(
-          `${micronsDistance.toFixed(2)} µm`, 
-          midX, 
-          midY - 15
+        ctx.textBaseline = 'middle';
+        const text = `${Math.round(micronsDistance)} µm`;
+        const textMetrics = ctx.measureText(text);
+        const padding = 8;
+        
+        // Draw background with proper centering
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(
+          midX - (textMetrics.width / 2) - padding,
+          midY - 10 - padding,
+          textMetrics.width + (padding * 2),
+          20 + (padding * 2)
         );
+        
+        // Draw text
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(text, midX, midY);
         break;
       }
 
@@ -725,23 +735,40 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         ctx.rect(shape.start.x, shape.start.y, width, height);
         ctx.fill();
         ctx.stroke();
-
+        
         // Calculate measurements in microns
-        const widthMicrons = pixelsToMicrons(width);
-        const heightMicrons = pixelsToMicrons(height);
-        const areaMicrons = widthMicrons * heightMicrons;
+        const widthMicrons = Math.round(pixelsToMicrons(width));
+        const heightMicrons = Math.round(pixelsToMicrons(height));
+        const areaMicrons = Math.round(widthMicrons * heightMicrons);
 
-        // Display measurements
+        // Display measurements with better visibility
         const centerX = shape.start.x + width/2;
         const centerY = shape.start.y + height/2;
         
-        ctx.fillStyle = 'black';
-        ctx.fillRect(centerX - 60, centerY - 35, 120, 70);
-        ctx.fillStyle = 'white';
-        ctx.font = '14px Arial';
-        ctx.fillText(`W: ${widthMicrons.toFixed(1)} µm`, centerX - 55, centerY - 25);
-        ctx.fillText(`H: ${heightMicrons.toFixed(1)} µm`, centerX - 55, centerY);
-        ctx.fillText(`A: ${areaMicrons.toFixed(1)} µm²`, centerX - 55, centerY + 25);
+        // Set up text measurements
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const text1 = `${widthMicrons} × ${heightMicrons} µm`;
+        const text2 = `Area: ${areaMicrons} µm²`;
+        const metrics1 = ctx.measureText(text1);
+        const metrics2 = ctx.measureText(text2);
+        const padding = 8;
+        const maxWidth = Math.max(metrics1.width, metrics2.width);
+
+        // Draw background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(
+          centerX - (maxWidth / 2) - padding,
+          centerY - 20 - padding,
+          maxWidth + (padding * 2),
+          40 + (padding * 2)
+        );
+
+        // Draw text
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(text1, centerX, centerY - 10);
+        ctx.fillText(text2, centerX, centerY + 10);
         break;
       }
 
@@ -751,18 +778,29 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         ctx.arc(shape.center.x, shape.center.y, shape.radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-
+        
         // Calculate measurements in microns
-        const radiusMicrons = pixelsToMicrons(shape.radius);
-        const areaMicrons = Math.PI * radiusMicrons * radiusMicrons;
-
-        // Display measurements
-        ctx.fillStyle = 'black';
-        ctx.fillRect(shape.center.x - 55, shape.center.y - 35, 110, 50);
-        ctx.fillStyle = 'white';
-        ctx.font = '14px Arial';
-        ctx.fillText(`R: ${radiusMicrons.toFixed(1)} µm`, shape.center.x - 50, shape.center.y - 20);
-        ctx.fillText(`A: ${areaMicrons.toFixed(1)} µm²`, shape.center.x - 50, shape.center.y + 5);
+        const radiusMicrons = Math.round(pixelsToMicrons(shape.radius));
+        const areaMicrons = Math.round(Math.PI * radiusMicrons * radiusMicrons);
+        
+        // Display measurements with better visibility
+        const center = shape.center;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(center.x - 60, center.y - 30, 120, 40);
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(
+          `R: ${radiusMicrons} µm`,
+          center.x,
+          center.y - 15
+        );
+        ctx.fillText(
+          `Area: ${areaMicrons} µm²`,
+          center.x,
+          center.y + 5
+        );
         break;
       }
 

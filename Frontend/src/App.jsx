@@ -63,8 +63,8 @@ const App = () => {
         />
       </div>
       <div className="flex-1 relative overflow-hidden">
-        <div className="fixed bottom-6 left-6 right-6 z-30 flex gap-4">
-          <div className="w-[288px] flex-shrink-0">
+        <div className="fixed bottom-16 left-6 z-30">
+          <div className="w-[288px]">
             <ControlBox 
               isRecording={isRecording}
               setIsRecording={setIsRecording}
@@ -72,15 +72,8 @@ const App = () => {
               onFolderChange={setCurrentFolderPath}
             />
           </div>
-          <div className="flex-1">
-            <ImageList
-              currentPath={currentFolderPath}
-              onSelectImage={handleImageSelect}
-              onDeleteImage={handleImageDelete}
-            />
-          </div>
         </div>
-        <div className="absolute inset-0 overflow-auto">
+        <div className="absolute inset-0 overflow-auto z-10">
           <Display
             isRecording={isRecording}
             imagePath={imagePath}
@@ -91,6 +84,12 @@ const App = () => {
             onShapesUpdate={handleShapesUpdate}
           />
         </div>
+
+        <ImageList
+          currentPath={currentFolderPath}
+          onSelectImage={handleImageSelect}
+          onDeleteImage={handleImageDelete}
+        />
       </div>
     </div>
   );
