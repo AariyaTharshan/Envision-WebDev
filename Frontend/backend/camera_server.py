@@ -15,7 +15,6 @@ from porosity_analysis import analyze_porosity, prepare_image
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'MvImport')))
 from MvCameraControl_class import *
 from ctypes import c_float, byref
-import imghdr  # For image type verification
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import atexit
@@ -1552,6 +1551,14 @@ def get_calibrations():
             'message': str(e)
         }), 500
 
+def is_valid_image(file_path):
+    """Verify if a file is a valid image using OpenCV"""
+    try:
+        img = cv2.imread(file_path)
+        return img is not None
+    except Exception:
+        return False
+
 @app.route('/api/list-images', methods=['POST'])
 def list_images():
     try:
@@ -1579,8 +1586,8 @@ def list_images():
                     # Get file stats
                     stats = os.stat(file_path)
                     
-                    # Verify it's actually an image
-                    if imghdr.what(file_path):
+                    # Verify it's actually an image using OpenCV
+                    if is_valid_image(file_path):
                         images.append({
                             'name': filename,
                             'path': file_path,
@@ -1622,8 +1629,8 @@ def delete_image():
                 'message': 'Image not found'
             }), 404
 
-        # Verify it's a file and an image
-        if not os.path.isfile(image_path) or not imghdr.what(image_path):
+        # Verify it's a file and an image using OpenCV
+        if not os.path.isfile(image_path) or not is_valid_image(image_path):
             return jsonify({
                 'status': 'error',
                 'message': 'Invalid image file'

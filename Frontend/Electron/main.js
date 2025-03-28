@@ -4,26 +4,40 @@ const { spawn } = require('child_process');
 let pythonProcess = null;
 
 function startFlaskServer() {
-    // Path to your Python executable and script
-    const pythonPath = 'python'; // or 'python3' depending on your system
-    const scriptPath = path.join(__dirname, '..', 'backend', 'camera_server.py');
 
-    // Start Flask server
-    pythonProcess = spawn(pythonPath, [scriptPath]);
-
-    pythonProcess.stdout.on('data', (data) => {
-        console.log(`Flask server: ${data}`);
-    });
-
-    pythonProcess.stderr.on('data', (data) => {
-        console.error(`Flask server error: ${data}`);
-    });
-
-    // Wait for Flask to start
-    return new Promise((resolve) => {
-        setTimeout(resolve, 2000); // Give Flask 2 seconds to start
-    });
-}
+        const isDev = process.env.NODE_ENV === 'development';
+        const pythonPath = 'python';
+        
+        let scriptPath;
+        if (isDev) {
+            scriptPath = path.join(__dirname, '..', 'backend', 'camera_server.py');
+        } else {
+            // In production, the backend folder will be in resources
+            scriptPath = path.join(process.resourcesPath, 'backend', 'camera_server.py');
+        }
+    
+        console.log('Starting Flask server from:', scriptPath);
+    
+        // Start Flask server
+        pythonProcess = spawn(pythonPath, [scriptPath]);
+    
+        pythonProcess.stdout.on('data', (data) => {
+            console.log(`Flask server: ${data}`);
+        });
+    
+        pythonProcess.stderr.on('data', (data) => {
+            console.error(`Flask server error: ${data}`);
+        });
+    
+        pythonProcess.on('error', (error) => {
+            console.error('Failed to start Flask server:', error);
+        });
+    
+        // Wait for Flask to start
+        return new Promise((resolve) => {
+            setTimeout(resolve, 2000);
+        });
+    }
 
 async function createMainWindow() {
     // Start Flask server before creating window

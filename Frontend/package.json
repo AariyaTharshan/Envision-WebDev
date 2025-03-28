@@ -2,14 +2,15 @@
   "name": "react-components",
   "private": true,
   "version": "0.0.0",
-  "main": "electron/main.js",
+  "main": "./Electron/main.js",
   "type": "module",
   "scripts": {
     "start": "vite",
     "build": "vite build",
     "postinstall": "node electron/install-python-deps.js",
     "electron-dev": "cross-env NODE_ENV=development electron .",
-    "electron-build": "vite build && cross-env NODE_ENV=production electron-builder"
+    "prepare-python": "node scripts/prepare-build.js",
+    "electron-build": "npm run prepare-python && vite build && cross-env NODE_ENV=production electron-builder"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -54,10 +55,23 @@
     "files": [
       "dist/**/*",
       "src/**/*",
-      "electron/main.js",
+      "Electron/**/*",
       "node_modules/**/*",
-      "package.json"
+      "backend/**/*",
+      "package.json",
+      "main.js"
     ],
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": ["**/*"]
+      }
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "dist"
+    },
     "win": {
       "target": [
         "nsis",
