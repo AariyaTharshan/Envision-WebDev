@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import CameraCalibrate from "./CameraCalibrate";
 import CameraConfiguration from "./CameraConfiguration";
-import Porosity from './PorosityAnalysis';
+import PorosityAnalysis from './PorosityAnalysis';
+import PhaseSegmentation from './Phase_Segmentation';
 
 const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [showCalibrate, setShowCalibrate] = useState(false);
   const [showCameraConfig, setShowCameraConfig] = useState(false);
   const [showPorosity, setShowPorosity] = useState(false);
+  const [showPhaseSegment, setShowPhaseSegment] = useState(false);
   const dropdownRefs = useRef([]);
 
   const menuItems = [
@@ -757,6 +759,8 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
       handleImageStitch();
     } else if (option === "Porosity") {
       setShowPorosity(true);
+    } else if (option === "Phases") {
+      setShowPhaseSegment(true);
     } else if (option === "Save Image") {
       handleSaveImage();
     }
@@ -899,22 +903,15 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
       )}
 
       {showPorosity && (
-        <div className="fixed right-0 top-0 h-full w-[600px] bg-white shadow-lg z-40 overflow-y-auto">
-            <div className="relative">
-                <div className="absolute left-0 top-4 pl-4">
-                    <button
-                        onClick={() => setShowPorosity(false)}
-                        className="text-gray-400 hover:text-gray-500 focus:outline-none"
-                    >
-                        <span className="sr-only">Close</span>
-                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-                <Porosity imagePath={imagePath} />
-            </div>
-        </div>
+        <PorosityAnalysis 
+          onClose={() => setShowPorosity(false)}
+        />
+      )}
+
+      {showPhaseSegment && (
+        <PhaseSegmentation 
+          onClose={() => setShowPhaseSegment(false)}
+        />
       )}
     </>
   );

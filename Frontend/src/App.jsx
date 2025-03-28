@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import Toolbar from './components/Toolbar'
 import ControlBox from './components/ControlBox'
@@ -6,6 +7,18 @@ import Display from './components/Display'
 import ImageList from './components/ImageList'
 
 const App = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if this is the first load
+    const hasLoaded = sessionStorage.getItem('hasLoaded');
+    if (!hasLoaded) {
+      // First time loading - show loading page
+      sessionStorage.setItem('hasLoaded', 'true');
+      navigate('/loading', { replace: true });
+    }
+  }, [navigate]);
+
   const [isRecording, setIsRecording] = useState(false);
   const [imagePath, setImagePath] = useState(null);
   const [currentImageUrl, setCurrentImageUrl] = useState(null);
