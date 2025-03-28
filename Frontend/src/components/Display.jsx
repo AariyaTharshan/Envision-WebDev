@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import envisionLogo from '../assest/envision.png'; // Import the logo
 
 const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, onShapesUpdate }) => {
   const [videoUrl, setVideoUrl] = useState(null);
@@ -40,6 +41,9 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
 
   // Add state for calibration
   const [currentCalibration, setCurrentCalibration] = useState(null);
+
+  // Add default image state
+  const [defaultImageLoaded, setDefaultImageLoaded] = useState(false);
 
   // Load calibration data when component mounts
   useEffect(() => {
@@ -961,7 +965,6 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
           if (imageUrl) URL.revokeObjectURL(imageUrl);
           const newUrl = URL.createObjectURL(blob);
           
-          // Use current resolution settings
           const newScale = calculateOptimalScale(resolution.width, resolution.height);
           setScale(newScale);
           
@@ -1126,7 +1129,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
           margin: '0 auto'
         }}
       >
-        {/* Image Layer */}
+        {/* Image Layer with Default Image */}
         {videoUrl ? (
           <img
             src={videoUrl}
@@ -1151,7 +1154,20 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
               setImageUrl(null);
             }}
           />
-        ) : null}
+        ) : (
+          // Default Envision logo
+          <img
+            src={envisionLogo}
+            alt="Envision Logo"
+            className="absolute top-0 left-0"
+            style={{
+              width: `${resolution.width}px`,
+              height: `${resolution.height}px`,
+              objectFit: 'contain',
+              opacity: 1 // Make it slightly transparent
+            }}
+          />
+        )}
 
         {/* Drawing Canvas Layer */}
         <canvas

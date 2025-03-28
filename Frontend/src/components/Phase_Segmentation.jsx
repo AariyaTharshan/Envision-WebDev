@@ -22,7 +22,7 @@ export default function PhaseSegmentation({ onClose }) {
           className="p-1 hover:bg-gray-700 rounded"
         >
           <X className="w-5 h-5" />
-        </button>
+          </button>
       </div>
 
       {/* Content */}
@@ -34,7 +34,7 @@ export default function PhaseSegmentation({ onClose }) {
             <span className="text-sm font-medium text-red-600">Step 1:</span>
             <button className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600">
               Get Image
-            </button>
+              </button>
           </div>
 
           {/* Source Selection */}
@@ -72,19 +72,19 @@ export default function PhaseSegmentation({ onClose }) {
                   <span className="text-sm">Configuration:</span>
                   <select className="text-sm border rounded px-2 py-1 bg-white">
                     <option>Select</option>
-                  </select>
-                </div>
+              </select>
+            </div>
                 <div className="flex gap-2">
                   <button className="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600">
-                    Apply
-                  </button>
+                Apply
+              </button>
                   <button className="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300 border">
-                    Delete
-                  </button>
-                </div>
-              </div>
+                Delete
+              </button>
             </div>
           </div>
+          </div>
+        </div>
 
           {/* Results Table */}
           <div className="border rounded shadow-sm">
@@ -114,18 +114,18 @@ export default function PhaseSegmentation({ onClose }) {
                   </tr>
                 </tbody>
               </table>
-            </div>
           </div>
+        </div>
 
           {/* Footer */}
           <div className="flex justify-between items-center pt-2">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
               <span className="text-sm">Field Image:</span>
               <div className="flex items-center border rounded">
                 <button className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 border-r">&lt;</button>
                 <span className="px-3 py-1 text-sm">{fieldImage}</span>
                 <button className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 border-l">&gt;</button>
-              </div>
+            </div>
             </div>
             <button className="px-4 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600">
               Generate Report
@@ -139,14 +139,14 @@ export default function PhaseSegmentation({ onClose }) {
           <div className="space-y-2">
             <button className="w-full px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600">
               New Phase
-            </button>
+          </button>
             <button className="w-full px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300 border">
               Clear Phases
-            </button>
+          </button>
             <button className="w-full px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300 border">
               Replace Color
-            </button>
-          </div>
+          </button>
+        </div>
 
           {/* Current Phase */}
           <div className="pt-4 border-t border-gray-200">

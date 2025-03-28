@@ -1,18 +1,29 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import "./LoadingPage.css"
+import "../styles/LoadingPage.css"
 
 function LoadingPage() {
   const [visible, setVisible] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Make animation visible
+    // Make animation visible immediately
     setVisible(true)
 
-    // Redirect to dashboard after 3 seconds
+    // Preload App component
+    const preloadApp = async () => {
+      try {
+        await import('../App')
+      } catch (error) {
+        console.error('Error preloading App:', error)
+      }
+    }
+    preloadApp()
+
+    // Navigate to dashboard after 3 seconds
     const timer = setTimeout(() => {
-      navigate("/dashboard")
+      // Use memory router navigation
+      navigate("/dashboard", { replace: true })
     }, 3000)
 
     return () => clearTimeout(timer)

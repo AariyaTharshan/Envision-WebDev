@@ -5,7 +5,7 @@ const ImageList = ({ currentPath, onSelectImage, onDeleteImage }) => {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   // Add polling interval state (default 5 seconds)
   const POLL_INTERVAL = 5000;

@@ -1,17 +1,17 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import App from './App'
-import LoadingPage from './components/LoadingPage'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import App from './App.jsx'
+import LoadingPage from './components/LoadingPage.jsx'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <MemoryRouter>
       <Routes>
-        <Route path="/loading" element={<LoadingPage />} />
-        <Route path="/" element={<App />} />
+        <Route path="/" element={<LoadingPage />} />
+        <Route path="/dashboard" element={<App />} />
       </Routes>
-    </BrowserRouter>
+    </MemoryRouter>
   </React.StrictMode>
 )
