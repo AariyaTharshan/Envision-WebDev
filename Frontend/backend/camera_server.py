@@ -7,7 +7,6 @@ import os
 import sys
 from pathlib import Path
 from datetime import datetime
-from werkzeug.utils import secure_filename
 from PIL import Image
 import numpy as np
 import json
@@ -15,8 +14,6 @@ from porosity_analysis import analyze_porosity, prepare_image
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'MvImport')))
 from MvCameraControl_class import *
 from ctypes import c_float, byref
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 import atexit
 
 app = Flask(__name__)
