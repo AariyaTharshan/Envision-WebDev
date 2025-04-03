@@ -64,7 +64,6 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
         "Particle Analysis",
         "Graphite Classification",
         "Coating Thickness",
-        "2D Measurements",
       ],
     },
     { name: "Help", options: ["About", "Help"] },
@@ -771,13 +770,13 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
     <>
       <nav className="bg-gray-800 text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-4">
-        <div className="relative flex items-center justify-between h-16">
+        <div className="relative flex items-center justify-between h-8">
           {/* Mobile menu button */}
           <div className="md:hidden">
-            <button className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none">
+            <button className="inline-flex items-center justify-center p-1 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none">
               <span className="sr-only">Open main menu</span>
               <svg
-                className="block h-6 w-6"
+                className="block h-4 w-4"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -795,7 +794,7 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
 
           {/* Desktop menu */}
           <div className="hidden md:block">
-            <div className="flex space-x-4">
+            <div className="flex space-x-2">
               {menuItems.map((item, index) => (
                   <div 
                     key={index} 
@@ -805,7 +804,7 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
                   <button
                     onClick={() => handleDropdown(index)}
                       onKeyDown={(e) => handleKeyDown(e, index)}
-                      className={`px-3 py-2 rounded-md text-sm font-medium 
+                      className={`px-2 py-1 rounded-md text-xs font-medium 
                         transition-colors duration-200 ease-in-out
                         ${activeDropdown === index 
                           ? 'bg-gray-700 text-white' 
@@ -822,7 +821,7 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
                   
                   {activeDropdown === index && (
                       <div 
-                        className="origin-top-left absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 
+                        className="origin-top-left absolute left-0 mt-1 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 
                           transform transition-all duration-200 ease-in-out z-50"
                         role="menu"
                       >
@@ -831,7 +830,7 @@ const Navbar = ({ imagePath, setImagePath, currentImageUrl }) => {
                           <a
                             key={optionIndex}
                             href="#"
-                              className="block px-4 py-2 text-sm text-gray-700 
+                              className="block px-3 py-1 text-xs text-gray-700 
                                 hover:bg-gray-100 hover:text-gray-900
                                 transition-colors duration-150 ease-in-out
                                 focus:outline-none focus:bg-gray-100 focus:text-gray-900"

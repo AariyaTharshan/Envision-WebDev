@@ -13,6 +13,9 @@ const App = () => {
   const [measurementData, setMeasurementData] = useState(null);
   const [shapes, setShapes] = useState([]);
   const [currentFolderPath, setCurrentFolderPath] = useState('C:\\Users\\Public\\MicroScope_Images');
+  const [currentColor, setCurrentColor] = useState('#00ff00');
+  const [currentFontColor, setCurrentFontColor] = useState('#ffffff');
+  const [currentThickness, setCurrentThickness] = useState(2);
 
   const handleImageLoad = (url) => {
     setCurrentImageUrl(url);
@@ -54,12 +57,18 @@ const App = () => {
           setImagePath={setImagePath} 
         />
       </div>
-      <div className="h-8 mt-5 z-40 relative">
+      <div className="h-8 z-40 relative">
         <Toolbar 
           onSelectTool={handleSelectTool}
           selectedTool={selectedTool}
           measurementData={measurementData}
           onClearShapes={handleClearShapes}
+          onColorChange={setCurrentColor}
+          onFontColorChange={setCurrentFontColor}
+          onThicknessChange={setCurrentThickness}
+          currentColor={currentColor}
+          currentFontColor={currentFontColor}
+          currentThickness={currentThickness}
         />
       </div>
       <div className="flex-1 relative overflow-hidden">
@@ -79,9 +88,13 @@ const App = () => {
             imagePath={imagePath}
             onImageLoad={handleImageLoad}
             selectedTool={selectedTool}
-            onSelectTool={handleSelectTool}
             shapes={shapes}
             onShapesUpdate={handleShapesUpdate}
+            currentColor={currentColor}
+            currentFontColor={currentFontColor}
+            currentThickness={currentThickness}
+            onColorChange={setCurrentColor}
+            onFontColorChange={setCurrentFontColor}
           />
         </div>
 

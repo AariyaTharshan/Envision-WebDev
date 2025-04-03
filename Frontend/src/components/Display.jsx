@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import envisionLogo from '../assest/envision.png'; // Import the logo
+import ShapeTracker from './ShapeTracker';
 
-const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, onShapesUpdate }) => {
+const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, onShapesUpdate, currentColor = '#00ff00', currentFontColor = '#ffffff', currentThickness = 2, onColorChange, onFontColorChange }) => {
   const [videoUrl, setVideoUrl] = useState(null);
   const [imageUrl, setImageUrl] = useState(null);
   const displayRef = useRef(null);
@@ -44,6 +45,20 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
 
   // Add default image state
   const [defaultImageLoaded, setDefaultImageLoaded] = useState(false);
+
+  // Add these new states near the top with other state declarations
+  const [textInput, setTextInput] = useState('');
+  const [showTextInput, setShowTextInput] = useState(false);
+  const [textPosition, setTextPosition] = useState(null);
+  const textInputRef = useRef(null);
+
+  // Add new state for move functionality
+  const [selectedShape, setSelectedShape] = useState(null);
+  const [isMoving, setIsMoving] = useState(false);
+  const [moveOffset, setMoveOffset] = useState({ x: 0, y: 0 });
+
+  // Add pointCounter state near the top with other state declarations
+  const [pointCounter, setPointCounter] = useState(1);
 
   // Load calibration data when component mounts
   useEffect(() => {
@@ -154,6 +169,180 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     };
   };
 
+  // Update isPointInShape function with better detection
+  const isPointInShape = (point, shape) => {
+    const threshold = 8; // Increased threshold for better detection
+
+    switch (shape.type) {
+      case 'point': {
+        const distance = Math.sqrt(
+          Math.pow(point.x - shape.x, 2) + 
+          Math.pow(point.y - shape.y, 2)
+        );
+        return distance <= threshold;
+      }
+
+      case 'line':
+      case 'arrow': {
+        const A = { x: shape.start.x, y: shape.start.y };
+        const B = { x: shape.end.x, y: shape.end.y };
+        const P = point;
+        
+        const AB = Math.sqrt(Math.pow(B.x - A.x, 2) + Math.pow(B.y - A.y, 2));
+        const AP = Math.sqrt(Math.pow(P.x - A.x, 2) + Math.pow(P.y - A.y, 2));
+        const BP = Math.sqrt(Math.pow(P.x - B.x, 2) + Math.pow(P.y - B.y, 2));
+        
+        // Check if point is near endpoints
+        if (AP <= threshold || BP <= threshold) return true;
+        
+        // Check if point is near line segment
+        const s = (AB + AP + BP) / 2;
+        const area = Math.sqrt(s * (s - AB) * (s - AP) * (s - BP));
+        const distance = (2 * area) / AB;
+        return distance <= threshold;
+      }
+
+      case 'rectangle': {
+        const x1 = Math.min(shape.start.x, shape.end.x);
+        const x2 = Math.max(shape.start.x, shape.end.x);
+        const y1 = Math.min(shape.start.y, shape.end.y);
+        const y2 = Math.max(shape.start.y, shape.end.y);
+
+        // Check if point is near any of the four edges
+        const edges = [
+          { start: { x: x1, y: y1 }, end: { x: x2, y: y1 } }, // top
+          { start: { x: x2, y: y1 }, end: { x: x2, y: y2 } }, // right
+          { start: { x: x2, y: y2 }, end: { x: x1, y: y2 } }, // bottom
+          { start: { x: x1, y: y2 }, end: { x: x1, y: y1 } }  // left
+        ];
+
+        return edges.some(edge => 
+          isPointNearLineSegment(point, edge.start, edge.end, threshold)
+        );
+      }
+
+      case 'circle': {
+        if (shape.points && shape.points.length === 3) {
+          const [p1, p2, p3] = shape.points;
+          const center = calculateCircleCenter(p1, p2, p3);
+          const radius = Math.sqrt(
+            Math.pow(p1.x - center.x, 2) + 
+            Math.pow(p1.y - center.y, 2)
+          );
+
+          const distance = Math.sqrt(
+            Math.pow(point.x - center.x, 2) + 
+            Math.pow(point.y - center.y, 2)
+          );
+
+          return Math.abs(distance - radius) <= threshold;
+        }
+        return false;
+      }
+
+      case 'curve':
+      case 'closedCurve': {
+        if (shape.points && shape.points.length >= 2) {
+          // Check each segment of the curve
+          for (let i = 0; i < shape.points.length - 1; i++) {
+            if (isPointNearLineSegment(
+              point,
+              shape.points[i],
+              shape.points[i + 1],
+              threshold
+            )) {
+              return true;
+            }
+          }
+          // For closed curves, check the last segment
+          if (shape.type === 'closedCurve' && shape.points.length > 2) {
+            if (isPointNearLineSegment(
+              point,
+              shape.points[shape.points.length - 1],
+              shape.points[0],
+              threshold
+            )) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+
+      case 'arc': {
+        if (shape.points && shape.points.length === 3) {
+          const [p1, p2, p3] = shape.points;
+          const center = calculateCircleCenter(p1, p2, p3);
+          const radius = Math.sqrt(
+            Math.pow(p1.x - center.x, 2) + 
+            Math.pow(p1.y - center.y, 2)
+          );
+
+          const distance = Math.sqrt(
+            Math.pow(point.x - center.x, 2) + 
+            Math.pow(point.y - center.y, 2)
+          );
+
+          if (Math.abs(distance - radius) <= threshold) {
+            const startAngle = Math.atan2(p1.y - center.y, p1.x - center.x);
+            const endAngle = Math.atan2(p3.y - center.y, p3.x - center.x);
+            const pointAngle = Math.atan2(point.y - center.y, point.x - center.x);
+
+            // Normalize angles
+            let normalizedStartAngle = startAngle;
+            let normalizedEndAngle = endAngle;
+            let normalizedPointAngle = pointAngle;
+
+            while (normalizedStartAngle < 0) normalizedStartAngle += Math.PI * 2;
+            while (normalizedEndAngle < 0) normalizedEndAngle += Math.PI * 2;
+            while (normalizedPointAngle < 0) normalizedPointAngle += Math.PI * 2;
+
+            if (normalizedEndAngle < normalizedStartAngle) {
+              normalizedEndAngle += Math.PI * 2;
+            }
+
+            return normalizedPointAngle >= normalizedStartAngle && 
+                   normalizedPointAngle <= normalizedEndAngle;
+          }
+        }
+        return false;
+      }
+
+      case 'text': {
+        const textWidth = shape.content.length * 8;
+        const textHeight = 14;
+
+        return point.x >= shape.position.x - threshold && 
+               point.x <= shape.position.x + textWidth + threshold && 
+               point.y >= shape.position.y - threshold && 
+               point.y <= shape.position.y + textHeight + threshold;
+      }
+
+      default:
+        return false;
+    }
+  };
+
+  // Add helper function to calculate circle center
+  const calculateCircleCenter = (p1, p2, p3) => {
+    const mid1 = {
+      x: (p1.x + p2.x) / 2,
+      y: (p1.y + p2.y) / 2
+    };
+    const mid2 = {
+      x: (p2.x + p3.x) / 2,
+      y: (p2.y + p3.y) / 2
+    };
+    
+    const slope1 = -(p2.x - p1.x) / (p2.y - p1.y);
+    const slope2 = -(p3.x - p2.x) / (p3.y - p2.y);
+    
+    return {
+      x: (mid2.y - mid1.y + slope1 * mid1.x - slope2 * mid2.x) / (slope1 - slope2),
+      y: slope1 * ((mid2.y - mid1.y + slope1 * mid1.x - slope2 * mid2.x) / (slope1 - slope2) - mid1.x) + mid1.y
+    };
+  };
+
   // Drawing functions for different tools
   const drawTools = {
     pointer: {
@@ -163,24 +352,62 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     },
     point: {
       mouseDown: (coords) => {
-        const newPoint = { type: 'point', x: coords.x, y: coords.y };
+        const newPoint = { 
+          type: 'point', 
+          x: coords.x, 
+          y: coords.y,
+          label: `p${pointCounter}`,
+          style: { 
+            color: currentColor, 
+            thickness: currentThickness,
+            fontColor: currentFontColor 
+          }
+        };
         onShapesUpdate([...shapes, newPoint]);
+        setPointCounter(prev => prev + 1);
       },
     },
     line: {
       mouseDown: (coords) => {
         setStartPoint(coords);
         setIsDrawing(true);
-        setCurrentShape({ type: 'line', start: coords, end: coords });
+        setCurrentShape({ 
+          type: 'line', 
+          start: coords, 
+          end: coords,
+          style: { 
+            color: currentColor, 
+            thickness: currentThickness,
+            fontColor: currentFontColor 
+          }
+        });
       },
       mouseMove: (coords) => {
         if (isDrawing) {
-          setCurrentShape({ type: 'line', start: startPoint, end: coords });
+          setCurrentShape({ 
+            type: 'line', 
+            start: startPoint, 
+            end: coords,
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
+          });
         }
       },
       mouseUp: (coords) => {
         if (isDrawing) {
-          const newLine = { type: 'line', start: startPoint, end: coords };
+          const newLine = { 
+            type: 'line', 
+            start: startPoint, 
+            end: coords,
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
+          };
           onShapesUpdate([...shapes, newLine]);
           setIsDrawing(false);
         }
@@ -190,16 +417,43 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseDown: (coords) => {
         setStartPoint(coords);
         setIsDrawing(true);
-        setCurrentShape({ type: 'rectangle', start: coords, end: coords });
+        setCurrentShape({ 
+          type: 'rectangle', 
+          start: coords, 
+          end: coords,
+          style: { 
+            color: currentColor, 
+            thickness: currentThickness,
+            fontColor: currentFontColor 
+          }
+        });
       },
       mouseMove: (coords) => {
         if (isDrawing) {
-          setCurrentShape({ type: 'rectangle', start: startPoint, end: coords });
+          setCurrentShape({ 
+            type: 'rectangle', 
+            start: startPoint, 
+            end: coords,
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
+          });
         }
       },
       mouseUp: (coords) => {
         if (isDrawing) {
-          const newRect = { type: 'rectangle', start: startPoint, end: coords };
+          const newRect = { 
+            type: 'rectangle', 
+            start: startPoint, 
+            end: coords,
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
+          };
           onShapesUpdate([...shapes, newRect]);
           setIsDrawing(false);
         }
@@ -207,27 +461,56 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     },
     circle: {
       mouseDown: (coords) => {
-        setStartPoint(coords);
+        if (!isDrawing) {
+          setCurvePoints([coords]);
         setIsDrawing(true);
-        setCurrentShape({ type: 'circle', center: coords, radius: 0 });
+        } else if (curvePoints.length < 3) {
+          setCurvePoints([...curvePoints, coords]);
+        }
       },
       mouseMove: (coords) => {
         if (isDrawing) {
-          const radius = Math.sqrt(
-            Math.pow(coords.x - startPoint.x, 2) + Math.pow(coords.y - startPoint.y, 2)
-          );
-          setCurrentShape({ type: 'circle', center: startPoint, radius });
+          if (curvePoints.length === 1) {
+            // First point is set, show preview line to current point
+            setCurrentShape({
+              type: 'circle',
+              points: [curvePoints[0], coords],
+              style: { 
+                color: currentColor, 
+                thickness: currentThickness,
+                fontColor: currentFontColor 
+              }
+            });
+          } else if (curvePoints.length === 2) {
+            // Second point is set, show preview line to current point
+            setCurrentShape({
+              type: 'circle',
+              points: [...curvePoints, coords],
+              style: { 
+                color: currentColor, 
+                thickness: currentThickness,
+                fontColor: currentFontColor 
+              }
+            });
+          }
         }
       },
-      mouseUp: (coords) => {
-        if (isDrawing) {
-          const radius = Math.sqrt(
-            Math.pow(coords.x - startPoint.x, 2) + 
-            Math.pow(coords.y - startPoint.y, 2)
-          );
-          const newCircle = { type: 'circle', center: startPoint, radius };
+      mouseUp: () => {},
+      doubleClick: () => {
+        if (isDrawing && curvePoints.length === 3) {
+          const newCircle = {
+            type: 'circle',
+            points: [...curvePoints],
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
+          };
           onShapesUpdate([...shapes, newCircle]);
           setIsDrawing(false);
+          setCurvePoints([]);
+          setCurrentShape(null);
         }
       },
     },
@@ -244,14 +527,27 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         if (isDrawing) {
           setCurrentShape({
             type: 'curve',
-            points: [...curvePoints, coords]
+            points: [...curvePoints, coords],
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
           });
         }
       },
       mouseUp: () => {},
       doubleClick: () => {
-        if (isDrawing) {
-          const newCurve = { type: 'curve', points: [...curvePoints] };
+        if (isDrawing && curvePoints.length >= 2) {
+          const newCurve = { 
+            type: 'curve', 
+            points: [...curvePoints],
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
+          };
           onShapesUpdate([...shapes, newCurve]);
           setIsDrawing(false);
           setCurvePoints([]);
@@ -271,7 +567,12 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         if (isDrawing) {
           setCurrentShape({
             type: 'closedCurve',
-            points: [...curvePoints, coords]
+            points: [...curvePoints, coords],
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
           });
         }
       },
@@ -279,7 +580,11 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       doubleClick: () => {
         if (isDrawing && curvePoints.length > 2) {
           const points = [...curvePoints, curvePoints[0]]; // Close the curve
-          const newClosedCurve = { type: 'closedCurve', points };
+          const newClosedCurve = { type: 'closedCurve', points, style: { 
+            color: currentColor, 
+            thickness: currentThickness,
+            fontColor: currentFontColor 
+          } };
           onShapesUpdate([...shapes, newClosedCurve]);
           setIsDrawing(false);
           setCurvePoints([]);
@@ -308,62 +613,290 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     },
     arc: {
       mouseDown: (coords) => {
+        if (!isDrawing) {
+          setCurvePoints([coords]);
+        setIsDrawing(true);
+        } else if (curvePoints.length < 3) {
+          setCurvePoints([...curvePoints, coords]);
+        }
+      },
+      mouseMove: (coords) => {
+        if (isDrawing) {
+          if (curvePoints.length === 1) {
+            // First point is set, show preview line to current point
+        setCurrentShape({ 
+          type: 'arc', 
+              points: [curvePoints[0], coords],
+              style: { 
+                color: currentColor, 
+                thickness: currentThickness,
+                fontColor: currentFontColor 
+              }
+            });
+          } else if (curvePoints.length === 2) {
+            // Second point is set, show preview line to current point
+            setCurrentShape({
+              type: 'arc',
+              points: [...curvePoints, coords],
+              style: { 
+                color: currentColor, 
+                thickness: currentThickness,
+                fontColor: currentFontColor 
+              }
+            });
+          }
+        }
+      },
+      mouseUp: () => {},
+      doubleClick: () => {
+        if (isDrawing && curvePoints.length === 3) {
+          const newArc = {
+            type: 'arc',
+            points: [...curvePoints],
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
+          };
+          onShapesUpdate([...shapes, newArc]);
+          setIsDrawing(false);
+          setCurvePoints([]);
+          setCurrentShape(null);
+        }
+      },
+    },
+    arrow: {
+      mouseDown: (coords) => {
         setStartPoint(coords);
         setIsDrawing(true);
         setCurrentShape({ 
-          type: 'arc', 
-          center: coords, 
-          radius: 0, 
-          startAngle: 0, 
-          endAngle: 0 
+          type: 'arrow', 
+          start: coords, 
+          end: coords,
+          style: { 
+            color: currentColor, 
+            thickness: currentThickness,
+            fontColor: currentFontColor 
+          }
         });
       },
       mouseMove: (coords) => {
         if (isDrawing) {
-          const radius = Math.sqrt(
-            Math.pow(coords.x - startPoint.x, 2) + 
-            Math.pow(coords.y - startPoint.y, 2)
-          );
-          
-          // Calculate angle
-          let pointAngle = Math.atan2(
-            coords.y - startPoint.y,
-            coords.x - startPoint.x
-          );
-
           setCurrentShape({
-            type: 'arc',
-            center: startPoint,
-            radius: radius,
-            startAngle: 0,
-            endAngle: pointAngle
+            type: 'arrow', 
+            start: startPoint, 
+            end: coords,
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
           });
         }
       },
       mouseUp: (coords) => {
         if (isDrawing) {
-          const radius = Math.sqrt(
-            Math.pow(coords.x - startPoint.x, 2) + 
-            Math.pow(coords.y - startPoint.y, 2)
-          );
-          
-          let pointAngle = Math.atan2(
-            coords.y - startPoint.y,
-            coords.x - startPoint.x
-          );
-
-          const newArc = {
-            type: 'arc',
-            center: startPoint,
-            radius: radius,
-            startAngle: 0,
-            endAngle: pointAngle
+          const newArrow = { 
+            type: 'arrow', 
+            start: startPoint, 
+            end: coords,
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
           };
-
-          onShapesUpdate([...shapes, newArc]);
+          onShapesUpdate([...shapes, newArrow]);
           setIsDrawing(false);
         }
       }
+    },
+    textbox: {
+      mouseDown: (coords) => {
+        setTextPosition(coords);
+        setShowTextInput(true);
+        setCurrentShape(null);
+        setTimeout(() => {
+          if (textInputRef.current) {
+            textInputRef.current.focus();
+          }
+        }, 100);
+      }
+    },
+    move: {
+      mouseDown: (coords) => {
+        // Find the shape that was clicked
+        const clickedShape = shapes.findLast(shape => isPointInShape(coords, shape));
+        if (clickedShape) {
+          setSelectedShape(clickedShape);
+          setIsMoving(true);
+          
+          // Simplified offset calculation
+          setMoveOffset({
+            x: coords.x,
+            y: coords.y
+          });
+          return;
+        }
+      },
+      mouseMove: (newCoords) => {
+        if (!ctxRef.current) return;
+        
+        // Handle shape movement
+        if (isMoving && selectedShape) {
+          const dx = newCoords.x - moveOffset.x;
+          const dy = newCoords.y - moveOffset.y;
+
+          const newShapes = shapes.map(shape => {
+            if (shape === selectedShape) {
+              switch (shape.type) {
+                case 'point':
+                  return {
+                    ...shape,
+                    x: shape.x + dx,
+                    y: shape.y + dy
+                  };
+                case 'line':
+                case 'arrow':
+                  return {
+                    ...shape,
+                    start: {
+                      x: shape.start.x + dx,
+                      y: shape.start.y + dy
+                    },
+                    end: {
+                      x: shape.end.x + dx,
+                      y: shape.end.y + dy
+                    }
+                  };
+                case 'rectangle':
+                  return {
+                    ...shape,
+                    start: {
+                      x: shape.start.x + dx,
+                      y: shape.start.y + dy
+                    },
+                    end: {
+                      x: shape.end.x + dx,
+                      y: shape.end.y + dy
+                    }
+                  };
+                case 'circle':
+                case 'arc':
+                case 'curve':
+                case 'closedCurve':
+                  if (shape.points) {
+                    return {
+                      ...shape,
+                      points: shape.points.map(point => ({
+                        x: point.x + dx,
+                        y: point.y + dy
+                      }))
+                    };
+                  }
+                  return shape;
+                case 'text':
+                  return {
+                    ...shape,
+                    position: {
+                      x: shape.position.x + dx,
+                      y: shape.position.y + dy
+                    }
+                  };
+                default:
+                  return shape;
+              }
+            }
+            return shape;
+          });
+
+          // Update the offset for the next move
+          setMoveOffset({
+            x: newCoords.x,
+            y: newCoords.y
+          });
+
+          onShapesUpdate(newShapes);
+          
+          // Force immediate redraw
+          requestAnimationFrame(() => {
+            if (ctxRef.current) {
+              drawShapes(ctxRef.current);
+            }
+          });
+          return;
+        }
+
+        // If we're not moving a shape, proceed with normal tool operations
+        if (!selectedTool || !isDrawing) return;
+        
+        const tool = drawTools[selectedTool];
+        if (tool?.mouseMove) {
+          tool.mouseMove(newCoords);
+          drawShapes(ctxRef.current);
+        }
+      },
+      mouseUp: () => {
+        setIsMoving(false);
+        setSelectedShape(null);
+        setMoveOffset({ x: 0, y: 0 });
+      }
+    },
+    angle: {
+      mouseDown: (coords) => {
+        if (!isDrawing) {
+          setCurvePoints([coords]);
+          setIsDrawing(true);
+        } else if (curvePoints.length < 3) {
+          setCurvePoints([...curvePoints, coords]);
+        }
+      },
+      mouseMove: (coords) => {
+        if (isDrawing) {
+          if (curvePoints.length === 1) {
+            // First point is set, show preview line to current point
+            setCurrentShape({
+              type: 'angle',
+              points: [curvePoints[0], coords],
+              style: { 
+                color: currentColor, 
+                thickness: currentThickness,
+                fontColor: currentFontColor 
+              }
+            });
+          } else if (curvePoints.length === 2) {
+            // Second point is set, show preview line to current point
+            setCurrentShape({
+              type: 'angle',
+              points: [...curvePoints, coords],
+              style: { 
+                color: currentColor, 
+                thickness: currentThickness,
+                fontColor: currentFontColor 
+              }
+            });
+          }
+        }
+      },
+      mouseUp: () => {},
+      doubleClick: () => {
+        if (isDrawing && curvePoints.length === 3) {
+          const newAngle = {
+            type: 'angle',
+            points: [...curvePoints],
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
+          };
+          onShapesUpdate([...shapes, newAngle]);
+          setIsDrawing(false);
+          setCurvePoints([]);
+          setCurrentShape(null);
+        }
+      },
     },
   };
 
@@ -394,8 +927,8 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         ctx.arc(coords.x, coords.y, eraserRadius, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.fill();
         ctx.lineWidth = 2;
+        ctx.fill();
         ctx.stroke();
       };
       
@@ -406,7 +939,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         canvas.removeEventListener('mousemove', handleEraserCursor);
       };
     }
-  }, [selectedTool, eraserRadius, shapes, currentShape]);
+  }, [selectedTool, eraserRadius, shapes, currentShape, currentColor, currentThickness]);
 
   // Update the drawShapes function
   const drawShapes = (ctx) => {
@@ -422,10 +955,6 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     if (currentShape) {
       drawShape(ctx, currentShape);
     }
-
-    // Ensure all drawing operations are completed
-    ctx.save();
-    ctx.restore();
   };
 
   // Update the eraseAtPoint function with better shape detection
@@ -594,37 +1123,163 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     return pixels / currentCalibration.calibrationFactor;
   };
 
-  // Update mouse event handlers
+  // Add isLeftClick helper near the top with other helper functions
+  const isLeftClick = (e) => e.button === 0;
+
+  // Update handleMouseDown with simpler offset calculation
   const handleMouseDown = (e) => {
-    if (!selectedTool || !ctxRef.current) return;
+    if (!ctxRef.current) return;
     
     const coords = getCanvasCoordinates(e);
+
+    // Check for left-click
+    if (isLeftClick(e)) {
+      // Find the topmost shape that was clicked
+      const clickedShape = shapes.findLast(shape => isPointInShape(coords, shape));
+      
+      if (clickedShape) {
+        setSelectedShape(clickedShape);
+        setIsMoving(true);
+        
+        // Simplified offset calculation
+        setMoveOffset({
+          x: coords.x,
+          y: coords.y
+        });
+        return;
+      }
+    }
+
+    // If we're not moving a shape, proceed with normal tool operations
+    if (!selectedTool) return;
+    
     const tool = drawTools[selectedTool];
     if (tool?.mouseDown) {
       tool.mouseDown(coords);
     }
   };
 
+  // Update handleMouseMove with improved movement calculation
   const handleMouseMove = (e) => {
-    if (!selectedTool || !ctxRef.current || !isDrawing) return;
+    if (!ctxRef.current) return;
     
     const coords = getCanvasCoordinates(e);
+
+    // Handle shape movement
+    if (isMoving && selectedShape) {
+      const dx = coords.x - moveOffset.x;
+      const dy = coords.y - moveOffset.y;
+
+      const newShapes = shapes.map(shape => {
+        if (shape === selectedShape) {
+          switch (shape.type) {
+            case 'point':
+              return {
+                ...shape,
+                x: shape.x + dx,
+                y: shape.y + dy
+              };
+            case 'line':
+            case 'arrow':
+              return {
+                ...shape,
+                start: {
+                  x: shape.start.x + dx,
+                  y: shape.start.y + dy
+                },
+                end: {
+                  x: shape.end.x + dx,
+                  y: shape.end.y + dy
+                }
+              };
+            case 'rectangle':
+              return {
+                ...shape,
+                start: {
+                  x: shape.start.x + dx,
+                  y: shape.start.y + dy
+                },
+                end: {
+                  x: shape.end.x + dx,
+                  y: shape.end.y + dy
+                }
+              };
+            case 'circle':
+            case 'arc':
+            case 'curve':
+            case 'closedCurve':
+              if (shape.points) {
+                return {
+                  ...shape,
+                  points: shape.points.map(point => ({
+                    x: point.x + dx,
+                    y: point.y + dy
+                  }))
+                };
+              }
+              return shape;
+            case 'text':
+              return {
+                ...shape,
+                position: {
+                  x: shape.position.x + dx,
+                  y: shape.position.y + dy
+                }
+              };
+            default:
+              return shape;
+          }
+        }
+        return shape;
+      });
+
+      // Update the offset for the next move
+      setMoveOffset({
+        x: coords.x,
+        y: coords.y
+      });
+
+      onShapesUpdate(newShapes);
+      
+      // Force immediate redraw
+      requestAnimationFrame(() => {
+        if (ctxRef.current) {
+          drawShapes(ctxRef.current);
+        }
+      });
+      return;
+    }
+
+    // If we're not moving a shape, proceed with normal tool operations
+    if (!selectedTool || !isDrawing) return;
+    
     const tool = drawTools[selectedTool];
     if (tool?.mouseMove) {
       tool.mouseMove(coords);
-      // Redraw shapes when moving
       drawShapes(ctxRef.current);
     }
   };
 
+  // Update handleMouseUp
   const handleMouseUp = (e) => {
-    if (!selectedTool || !ctxRef.current) return;
+    if (!ctxRef.current) return;
     
     const coords = getCanvasCoordinates(e);
+
+    // Handle end of shape movement
+    if (isMoving) {
+      setIsMoving(false);
+      setSelectedShape(null);
+      setMoveOffset({ x: 0, y: 0 });
+      return; // Exit early if we were moving a shape
+    }
+
+    // If we weren't moving a shape, proceed with normal tool operations
+    if (!selectedTool) return;
+    
     const tool = drawTools[selectedTool];
     if (tool?.mouseUp) {
       tool.mouseUp(coords);
-      // Redraw shapes after finishing
       drawShapes(ctxRef.current);
     }
   };
@@ -636,38 +1291,136 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     }
   };
 
+  // Helper function to draw shape outline for selection
+  const drawShapeOutline = (ctx, shape) => {
+    switch (shape.type) {
+      case 'point': {
+        ctx.beginPath();
+        ctx.arc(shape.x, shape.y, 3, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+      }
+      case 'line':
+      case 'arrow': {
+        ctx.beginPath();
+        ctx.moveTo(shape.start.x, shape.start.y);
+        ctx.lineTo(shape.end.x, shape.end.y);
+        ctx.stroke();
+        break;
+      }
+      case 'rectangle': {
+        const width = Math.abs(shape.end.x - shape.start.x);
+        const height = Math.abs(shape.end.y - shape.start.y);
+        ctx.beginPath();
+        ctx.rect(shape.start.x, shape.start.y, width, height);
+        ctx.stroke();
+        break;
+      }
+      case 'circle':
+      case 'arc':
+      case 'angle': {
+        if (shape.points && shape.points.length === 3) {
+          ctx.beginPath();
+          if (shape.type === 'circle') {
+            const [p1, p2, p3] = shape.points;
+            const center = calculateCircleCenter(p1, p2, p3);
+            const radius = Math.sqrt(
+              Math.pow(p1.x - center.x, 2) + 
+              Math.pow(p1.y - center.y, 2)
+            );
+            ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+          } else {
+            ctx.moveTo(shape.points[0].x, shape.points[0].y);
+            ctx.lineTo(shape.points[1].x, shape.points[1].y);
+            ctx.lineTo(shape.points[2].x, shape.points[2].y);
+          }
+          ctx.stroke();
+        }
+        break;
+      }
+      case 'curve':
+      case 'closedCurve': {
+        if (shape.points && shape.points.length >= 2) {
+          ctx.beginPath();
+          ctx.moveTo(shape.points[0].x, shape.points[0].y);
+          shape.points.slice(1).forEach(point => {
+            ctx.lineTo(point.x, point.y);
+          });
+          if (shape.type === 'closedCurve') {
+            ctx.closePath();
+          }
+          ctx.stroke();
+        }
+        break;
+      }
+      case 'text': {
+        const textWidth = shape.content.length * 8;
+        const textHeight = 14;
+        ctx.beginPath();
+        ctx.rect(
+          shape.position.x - 2,
+          shape.position.y - 12,
+          textWidth + 4,
+          textHeight + 4
+        );
+        ctx.stroke();
+        break;
+      }
+    }
+  };
+
   // Drawing function
   const drawShape = (ctx, shape) => {
-    ctx.strokeStyle = '#00ff00';
-    ctx.lineWidth = 2;
-    ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
-    ctx.font = '14px Arial';
-    ctx.textBaseline = 'top';
+    if (!ctx || !shape) return;
 
+    // Get shape style with fallbacks
+    const shapeStyle = shape.style || {};
+    const color = shapeStyle.color || currentColor;
+    const thickness = shapeStyle.thickness || currentThickness;
+    const fontColor = shapeStyle.fontColor || currentFontColor;
+    
+    // Set up context styles
+    ctx.strokeStyle = color;
+    ctx.lineWidth = thickness;
+    
+    // If shape is selected, draw a highlight outline first
+    if (shape === selectedShape) {
+      ctx.save();
+      ctx.strokeStyle = '#00ffff';
+      ctx.lineWidth = thickness + 2;
+      drawShapeOutline(ctx, shape);
+      ctx.restore();
+    }
+    
+    // Reset to shape's actual color and thickness
+    ctx.strokeStyle = color;
+    ctx.lineWidth = thickness;
+    ctx.fillStyle = `${color}33`; // Add 33 for 20% opacity
+
+    // Draw the actual shape
     switch (shape.type) {
-      case 'point':
+      case 'point': {
         ctx.beginPath();
-        ctx.arc(shape.x, shape.y, 5, 0, Math.PI * 2);
+        ctx.arc(shape.x, shape.y, 3, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-        // Add label
-        ctx.fillStyle = 'black';
-        ctx.fillRect(shape.x + 10, shape.y - 20, 60, 20);
-        ctx.fillStyle = 'white';
-        ctx.fillText('Point', shape.x + 15, shape.y - 15);
+        
+        // Use shape's font color for label
+        ctx.fillStyle = fontColor;
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(shape.label, shape.x, shape.y - 10);
         break;
-
+      }
       case 'line': {
         // Draw main line
-        ctx.strokeStyle = '#00ff00'; // Bright green
-        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(shape.start.x, shape.start.y);
         ctx.lineTo(shape.end.x, shape.end.y);
         ctx.stroke();
         
         // Draw perpendicular lines at endpoints
-        const perpLength = 10; // Length of perpendicular lines
+        const perpLength = 10;
         const angle = Math.atan2(shape.end.y - shape.start.y, shape.end.x - shape.start.x);
         const perpAngle = angle + Math.PI/2;
 
@@ -703,33 +1456,17 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         
         const micronsDistance = pixelsToMicrons(pixelDistance);
 
-        // Display measurement with better visibility
+        // Display measurement
         const midX = (shape.start.x + shape.end.x) / 2;
         const midY = (shape.start.y + shape.end.y) / 2;
         
-        // Set up text first to measure it
+        ctx.fillStyle = fontColor;
         ctx.font = 'bold 14px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const text = `${Math.round(micronsDistance)} µm`;
-        const textMetrics = ctx.measureText(text);
-        const padding = 8;
-        
-        // Draw background with proper centering
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(
-          midX - (textMetrics.width / 2) - padding,
-          midY - 10 - padding,
-          textMetrics.width + (padding * 2),
-          20 + (padding * 2)
-        );
-        
-        // Draw text
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(text, midX, midY);
+        ctx.fillText(`${Math.round(micronsDistance)} µm`, midX, midY);
         break;
       }
-
       case 'rectangle': {
         const width = Math.abs(shape.end.x - shape.start.x);
         const height = Math.abs(shape.end.y - shape.start.y);
@@ -745,89 +1482,138 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         const heightMicrons = Math.round(pixelsToMicrons(height));
         const areaMicrons = Math.round(widthMicrons * heightMicrons);
 
-        // Display measurements with better visibility
+        // Display measurements
         const centerX = shape.start.x + width/2;
         const centerY = shape.start.y + height/2;
         
-        // Set up text measurements
+        ctx.fillStyle = fontColor;
         ctx.font = 'bold 14px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const text1 = `${widthMicrons} × ${heightMicrons} µm`;
-        const text2 = `Area: ${areaMicrons} µm²`;
-        const metrics1 = ctx.measureText(text1);
-        const metrics2 = ctx.measureText(text2);
-        const padding = 8;
-        const maxWidth = Math.max(metrics1.width, metrics2.width);
-
-        // Draw background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(
-          centerX - (maxWidth / 2) - padding,
-          centerY - 20 - padding,
-          maxWidth + (padding * 2),
-          40 + (padding * 2)
-        );
-
-        // Draw text
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(text1, centerX, centerY - 10);
-        ctx.fillText(text2, centerX, centerY + 10);
+        ctx.fillText(`${widthMicrons} × ${heightMicrons} µm`, centerX, centerY - 10);
+        ctx.fillText(`Area: ${areaMicrons} µm²`, centerX, centerY + 10);
         break;
       }
-
       case 'circle': {
+        if (shape.points && shape.points.length === 3) {
+          // Calculate circle from three points
+          const [p1, p2, p3] = shape.points;
+          
+          // Calculate perpendicular bisectors
+          const mid1 = {
+            x: (p1.x + p2.x) / 2,
+            y: (p1.y + p2.y) / 2
+          };
+          const mid2 = {
+            x: (p2.x + p3.x) / 2,
+            y: (p2.y + p3.y) / 2
+          };
+          
+          // Calculate slopes of perpendicular bisectors
+          const slope1 = -(p2.x - p1.x) / (p2.y - p1.y);
+          const slope2 = -(p3.x - p2.x) / (p3.y - p2.y);
+          
+          // Calculate center (intersection of perpendicular bisectors)
+          const center = {
+            x: (mid2.y - mid1.y + slope1 * mid1.x - slope2 * mid2.x) / (slope1 - slope2),
+            y: slope1 * ((mid2.y - mid1.y + slope1 * mid1.x - slope2 * mid2.x) / (slope1 - slope2) - mid1.x) + mid1.y
+          };
+          
+          // Calculate radius
+          const radius = Math.sqrt(
+            Math.pow(p1.x - center.x, 2) + 
+            Math.pow(p1.y - center.y, 2)
+          );
+          
         // Draw circle
         ctx.beginPath();
-        ctx.arc(shape.center.x, shape.center.y, shape.radius, 0, Math.PI * 2);
+          ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
         
-        // Calculate measurements in microns
-        const radiusMicrons = Math.round(pixelsToMicrons(shape.radius));
+          // Draw the three points
+          shape.points.forEach(point => {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          });
+          
+          // Calculate and display measurements
+          const radiusMicrons = Math.round(pixelsToMicrons(radius));
         const areaMicrons = Math.round(Math.PI * radiusMicrons * radiusMicrons);
         
-        // Display measurements with better visibility
-        const center = shape.center;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(center.x - 60, center.y - 30, 120, 40);
-        
-        ctx.fillStyle = '#ffffff';
+          // Display measurements
+          ctx.fillStyle = fontColor;
         ctx.font = 'bold 14px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(
-          `R: ${radiusMicrons} µm`,
-          center.x,
-          center.y - 15
-        );
-        ctx.fillText(
-          `Area: ${areaMicrons} µm²`,
-          center.x,
-          center.y + 5
-        );
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`R: ${radiusMicrons} µm`, center.x, center.y - 15);
+          ctx.fillText(`Area: ${areaMicrons} µm²`, center.x, center.y + 5);
+        } else if (shape.points && shape.points.length === 2) {
+          // Draw preview line
+          ctx.beginPath();
+          ctx.moveTo(shape.points[0].x, shape.points[0].y);
+          ctx.lineTo(shape.points[1].x, shape.points[1].y);
+          ctx.stroke();
+        }
         break;
       }
-
-      case 'curve':
-      case 'closedCurve':
+      case 'curve': {
+        if (shape.points && shape.points.length >= 2) {
+          // Draw the curve using quadratic curves for smoother appearance
+          ctx.beginPath();
+          ctx.moveTo(shape.points[0].x, shape.points[0].y);
+          
+          for (let i = 1; i < shape.points.length - 1; i++) {
+            const xc = (shape.points[i].x + shape.points[i + 1].x) / 2;
+            const yc = (shape.points[i].y + shape.points[i + 1].y) / 2;
+            ctx.quadraticCurveTo(shape.points[i].x, shape.points[i].y, xc, yc);
+          }
+          
+          // Handle the last segment
         if (shape.points.length > 1) {
+            const last = shape.points.length - 1;
+            ctx.quadraticCurveTo(
+              shape.points[last].x,
+              shape.points[last].y,
+              shape.points[last].x,
+              shape.points[last].y
+            );
+          }
+          
+          ctx.stroke();
+
+          // Calculate and display length
+          let length = 0;
+          for (let i = 1; i < shape.points.length; i++) {
+            length += Math.sqrt(
+              Math.pow(shape.points[i].x - shape.points[i-1].x, 2) +
+              Math.pow(shape.points[i].y - shape.points[i-1].y, 2)
+            );
+          }
+          const lengthMicrons = Math.round(pixelsToMicrons(length));
+
+          // Display length
+          const lastPoint = shape.points[shape.points.length - 1];
+          ctx.fillStyle = fontColor;
+          ctx.font = 'bold 14px Arial';
+          ctx.textAlign = 'left';
+          ctx.fillText(`${lengthMicrons} µm`, lastPoint.x + 15, lastPoint.y);
+        }
+        break;
+      }
+      case 'closedCurve': {
+        if (shape.points && shape.points.length > 2) {
           ctx.beginPath();
           ctx.moveTo(shape.points[0].x, shape.points[0].y);
           shape.points.slice(1).forEach(point => {
             ctx.lineTo(point.x, point.y);
           });
-          if (shape.type === 'closedCurve') {
             ctx.closePath();
             ctx.fill();
-          }
           ctx.stroke();
 
-          // Add length or area measurement
-          const lastPoint = shape.points[shape.points.length - 1];
-          ctx.fillStyle = 'black';
-          ctx.fillRect(lastPoint.x + 10, lastPoint.y - 25, 100, 20);
-          ctx.fillStyle = 'white';
-          if (shape.type === 'closedCurve') {
             // Calculate area using shoelace formula
             let area = 0;
             for (let i = 0; i < shape.points.length - 1; i++) {
@@ -835,58 +1621,199 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
                       shape.points[i + 1].x * shape.points[i].y;
             }
             area = Math.abs(area) / 2;
-            ctx.fillText(`Area: ${area.toFixed(1)}`, lastPoint.x + 15, lastPoint.y - 20);
-          } else {
-            // Calculate curve length
-            let length = 0;
-            for (let i = 1; i < shape.points.length; i++) {
-              length += Math.sqrt(
-                Math.pow(shape.points[i].x - shape.points[i-1].x, 2) +
-                Math.pow(shape.points[i].y - shape.points[i-1].y, 2)
-              );
-            }
-            ctx.fillText(`Length: ${length.toFixed(1)}`, lastPoint.x + 15, lastPoint.y - 20);
-          }
+          const areaMicrons = Math.round(pixelsToMicrons(area));
+
+          // Display area
+          const lastPoint = shape.points[shape.points.length - 1];
+          ctx.fillStyle = fontColor;
+          ctx.font = 'bold 14px Arial';
+          ctx.textAlign = 'left';
+          ctx.fillText(`${areaMicrons} µm²`, lastPoint.x + 15, lastPoint.y);
         }
         break;
-
+      }
       case 'arc': {
+        if (shape.points && shape.points.length === 3) {
+          // Calculate circle from three points
+          const [p1, p2, p3] = shape.points;
+          
+          // Calculate perpendicular bisectors
+          const mid1 = {
+            x: (p1.x + p2.x) / 2,
+            y: (p1.y + p2.y) / 2
+          };
+          const mid2 = {
+            x: (p2.x + p3.x) / 2,
+            y: (p2.y + p3.y) / 2
+          };
+          
+          // Calculate slopes of perpendicular bisectors
+          const slope1 = -(p2.x - p1.x) / (p2.y - p1.y);
+          const slope2 = -(p3.x - p2.x) / (p3.y - p2.y);
+          
+          // Calculate center
+          const center = {
+            x: (mid2.y - mid1.y + slope1 * mid1.x - slope2 * mid2.x) / (slope1 - slope2),
+            y: slope1 * ((mid2.y - mid1.y + slope1 * mid1.x - slope2 * mid2.x) / (slope1 - slope2) - mid1.x) + mid1.y
+          };
+          
+          // Calculate radius
+          const radius = Math.sqrt(
+            Math.pow(p1.x - center.x, 2) + 
+            Math.pow(p1.y - center.y, 2)
+          );
+          
+          // Calculate angles
+          const startAngle = Math.atan2(p1.y - center.y, p1.x - center.x);
+          const endAngle = Math.atan2(p3.y - center.y, p3.x - center.x);
+          
+          // Draw arc
+          ctx.beginPath();
+          ctx.arc(center.x, center.y, radius, startAngle, endAngle);
+          ctx.stroke();
+          
+          // Draw the three points
+          shape.points.forEach(point => {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          });
+          
+          // Calculate and display measurements
+          const arcLength = Math.abs(endAngle - startAngle) * radius;
+          const angle = Math.abs((endAngle - startAngle) * (180 / Math.PI));
+          const radiusMicrons = Math.round(pixelsToMicrons(radius));
+          const arcLengthMicrons = Math.round(pixelsToMicrons(arcLength));
+          
+          // Display measurements
+          const textX = center.x + (radius * 0.7) * Math.cos((startAngle + endAngle) / 2);
+          const textY = center.y + (radius * 0.7) * Math.sin((startAngle + endAngle) / 2);
+          
+          ctx.fillStyle = fontColor;
+          ctx.font = 'bold 14px Arial';
+          ctx.textAlign = 'left';
+          ctx.fillText(`R: ${radiusMicrons}µm`, textX - 55, textY - 30);
+          ctx.fillText(`L: ${arcLengthMicrons}µm`, textX - 55, textY - 15);
+          ctx.fillText(`A: ${angle.toFixed(1)}°`, textX - 55, textY);
+        } else if (shape.points && shape.points.length === 2) {
+          // Draw preview line
+          ctx.beginPath();
+          ctx.moveTo(shape.points[0].x, shape.points[0].y);
+          ctx.lineTo(shape.points[1].x, shape.points[1].y);
+          ctx.stroke();
+        }
+        break;
+      }
+      case 'arrow': {
+        // Draw the main line
         ctx.beginPath();
-        ctx.arc(
-          shape.center.x,
-          shape.center.y,
-          shape.radius,
-          shape.startAngle,
-          shape.endAngle
-        );
+        ctx.moveTo(shape.start.x, shape.start.y);
+        ctx.lineTo(shape.end.x, shape.end.y);
         ctx.stroke();
 
-        // Draw radius line
+        // Calculate arrow head
+        const angle = Math.atan2(shape.end.y - shape.start.y, shape.end.x - shape.start.x);
+        const headLength = 20;
+        const headAngle = Math.PI / 6; // 30 degrees
+
+        // Draw arrow head
         ctx.beginPath();
-        ctx.moveTo(shape.center.x, shape.center.y);
+        ctx.moveTo(shape.end.x, shape.end.y);
         ctx.lineTo(
-          shape.center.x + shape.radius * Math.cos(shape.endAngle),
-          shape.center.y + shape.radius * Math.sin(shape.endAngle)
+          shape.end.x - headLength * Math.cos(angle - headAngle),
+          shape.end.y - headLength * Math.sin(angle - headAngle)
+        );
+        ctx.moveTo(shape.end.x, shape.end.y);
+        ctx.lineTo(
+          shape.end.x - headLength * Math.cos(angle + headAngle),
+          shape.end.y - headLength * Math.sin(angle + headAngle)
         );
         ctx.stroke();
+        break;
+      }
+      case 'text': {
+        // Use shape's font color for text
+        ctx.fillStyle = fontColor;
+        ctx.fillText(shape.content, shape.position.x, shape.position.y);
+        break;
+      }
+      case 'angle': {
+        if (shape.points && shape.points.length === 3) {
+          const [p1, p2, p3] = shape.points;
+          
+          // Draw the angle lines
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.lineTo(p3.x, p3.y);
+          ctx.stroke();
 
-        // Calculate and display measurements
-        const arcLength = Math.abs(shape.endAngle - shape.startAngle) * shape.radius;
-        const angle = Math.abs((shape.endAngle - shape.startAngle) * (180 / Math.PI));
-        
-        const arcLengthMicrons = pixelsToMicrons(arcLength);
-        const radiusMicrons = pixelsToMicrons(shape.radius);
+          // Draw the points
+          shape.points.forEach((point, index) => {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Label the points
+            ctx.fillStyle = fontColor;
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`P${index + 1}`, point.x, point.y - 15);
+          });
 
-        // Display measurements
-        const textX = shape.center.x + (shape.radius * 0.7) * Math.cos(shape.endAngle / 2);
-        const textY = shape.center.y + (shape.radius * 0.7) * Math.sin(shape.endAngle / 2);
+          // Calculate angle
+          const angle1 = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+          const angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
+          let angle = Math.abs(angle2 - angle1) * (180 / Math.PI);
+          
+          // Normalize angle to be between 0 and 180 degrees
+          if (angle > 180) {
+            angle = 360 - angle;
+          }
 
-        ctx.fillStyle = 'black';
-        ctx.fillRect(textX - 60, textY - 35, 120, 50);
-        ctx.fillStyle = 'white';
-        ctx.fillText(`R: ${radiusMicrons.toFixed(1)}µm`, textX - 55, textY - 30);
-        ctx.fillText(`L: ${arcLengthMicrons.toFixed(1)}µm`, textX - 55, textY - 15);
-        ctx.fillText(`A: ${angle.toFixed(1)}°`, textX - 55, textY);
+          // Draw arc to show angle
+          const arcRadius = 30;
+          const startAngle = Math.min(angle1, angle2);
+          const endAngle = Math.max(angle1, angle2);
+          
+          // Draw the angle arc
+          ctx.beginPath();
+          ctx.arc(p2.x, p2.y, arcRadius, startAngle, endAngle);
+          ctx.stroke();
+
+          // Add angle measurement text
+          const textX = p2.x + (arcRadius + 10) * Math.cos((angle1 + angle2) / 2);
+          const textY = p2.y + (arcRadius + 10) * Math.sin((angle1 + angle2) / 2);
+          
+          ctx.fillStyle = fontColor;
+          ctx.font = 'bold 14px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${angle.toFixed(1)}°`, textX, textY);
+
+          // Add perpendicular lines at the vertex
+          const perpLength = 10;
+          const perpAngle = (angle1 + angle2) / 2 + Math.PI/2;
+          
+          ctx.beginPath();
+          ctx.moveTo(
+            p2.x + Math.cos(perpAngle) * perpLength,
+            p2.y + Math.sin(perpAngle) * perpLength
+          );
+          ctx.lineTo(
+            p2.x - Math.cos(perpAngle) * perpLength,
+            p2.y - Math.sin(perpAngle) * perpLength
+          );
+          ctx.stroke();
+
+        } else if (shape.points && shape.points.length === 2) {
+          // Draw preview line
+          ctx.beginPath();
+          ctx.moveTo(shape.points[0].x, shape.points[0].y);
+          ctx.lineTo(shape.points[1].x, shape.points[1].y);
+          ctx.stroke();
+        }
         break;
       }
     }
@@ -1100,6 +2027,39 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     }
   }, [shapes]);
 
+  // Add text submission handler
+  const handleTextSubmit = (e) => {
+    e.preventDefault();
+    if (textInput && textPosition) {
+      const newText = {
+        type: 'text',
+        position: textPosition,
+        content: textInput,
+        style: { 
+          color: currentColor, 
+          thickness: currentThickness,
+          fontColor: currentFontColor 
+        }
+      };
+      onShapesUpdate([...shapes, newText]);
+      setTextInput('');
+      setShowTextInput(false);
+      setTextPosition(null);
+    }
+  };
+
+  // Add effect to reset point counter when shapes are cleared
+  useEffect(() => {
+    if (shapes.length === 0) {
+      setPointCounter(1);
+    }
+  }, [shapes]);
+
+  // Add shape selection handler
+  const handleShapeSelect = (shape) => {
+    setSelectedShape(shape);
+  };
+
   return (
     <div 
       ref={containerRef}
@@ -1110,6 +2070,17 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       }}
       onWheel={handleWheel}
     >
+      <ShapeTracker
+        shapes={shapes}
+        selectedShape={selectedShape}
+        onShapeSelect={handleShapeSelect}
+        onColorChange={onColorChange}
+        currentColor={currentColor}
+        currentFontColor={currentFontColor}
+        onFontColorChange={onFontColorChange}
+        onShapesUpdate={onShapesUpdate}
+      />
+      
       {renderHelperText()}
       
       {/* Add calibration scale display */}
@@ -1178,13 +2149,44 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
           onMouseUp={handleMouseUp}
           onDoubleClick={handleDoubleClick}
           style={{
-            cursor: selectedTool === 'eraser' ? 'none' : 'crosshair',
+            cursor: selectedTool === 'eraser' ? 'none' : 
+                   isMoving ? 'grabbing' : 'default',
             width: `${resolution.width}px`,
             height: `${resolution.height}px`,
             zIndex: 10
           }}
         />
       </div>
+
+      {/* Add text input overlay */}
+      {showTextInput && textPosition && (
+        <div 
+          className="absolute"
+          style={{
+            left: textPosition.x * zoom,
+            top: textPosition.y * zoom,
+            transform: 'translate(-50%, -50%)'
+          }}
+        >
+          <form onSubmit={handleTextSubmit} className="flex items-center gap-2">
+            <input
+              ref={textInputRef}
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              className="px-2 py-1 text-sm border border-gray-300 rounded shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter text..."
+              autoFocus
+            />
+            <button 
+              type="submit"
+              className="px-2 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Add
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 };
