@@ -613,95 +613,168 @@ const CameraCalibrate = ({ imagePath }) => {
   };
 
   return (
-    <div className="h-screen flex flex-col p-4 bg-white">
-      {/* Header - Compact */}
-      <div className="flex items-center justify-between mb-2 pb-2 border-b">
+    <div className="h-screen flex flex-col p-4 bg-gray-50">
+      {/* Header - Enhanced */}
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
         <div>
-          <h2 className="text-xl font-bold text-gray-800">Camera Calibration</h2>
-          <p className="text-sm text-gray-600">Calibrate your microscope camera for precise measurements</p>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-gray-800">Camera Calibration</h2>
+            {selectedExistingCalibration && (
+              <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                Calibrated
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-gray-600 mt-1">
+            {selectedExistingCalibration ? 
+              `Using ${selectedExistingCalibration.magnification} calibration (${selectedExistingCalibration.calibrationFactor.toFixed(4)} px/μm)` : 
+              'Calibrate your microscope camera for precise measurements'}
+          </p>
         </div>
         
-        {/* Action Buttons - Moved to header */}
-        <div className="flex gap-2">
+        {/* Action Buttons - Redesigned */}
+        <div className="flex items-center gap-3">
           <button
             onClick={handleMeasurementSubmit}
             disabled={!calibrationLine.start || !measurementValue || !canDrawLine}
-            className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 
-              disabled:bg-gray-300 disabled:cursor-not-allowed"
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
+              bg-blue-500 text-white hover:bg-blue-600 
+              disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
           >
+            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
             Calibrate
           </button>
-          <button
-            onClick={saveImage}
-            disabled={!image}
-            className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 
-              disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            Save
-          </button>
-          <button
-            onClick={handleSaveCalibration}
-            disabled={!realScale.x}
-            className="px-3 py-1 bg-purple-500 text-white text-sm rounded hover:bg-purple-600 
-              disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            Save Cal.
-          </button>
-          <button
-            onClick={resetCalibration}
-            className="px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
-          >
-            Reset
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={saveImage}
+              disabled={!image}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
+                bg-green-500 text-white hover:bg-green-600 
+                disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+              </svg>
+              Save
+            </button>
+            <button
+              onClick={handleSaveCalibration}
+              disabled={!realScale.x}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
+                bg-purple-500 text-white hover:bg-purple-600 
+                disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+              Save Cal.
+            </button>
+            <button
+              onClick={resetCalibration}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
+                text-red-600 bg-red-50 hover:bg-red-100 transition-all duration-200"
+            >
+              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Reset
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
+      {/* Main Content Area - Enhanced */}
       <div className="flex-1 flex gap-4 min-h-0">
         {/* Left Panel - Controls */}
-        <div className="w-64 flex flex-col gap-2">
-          {/* Calibration Type Selection */}
+        <div className="w-72 flex flex-col gap-3">
+          {/* Calibration Type Selection - Enhanced */}
           {!calibrationType && (
-            <div className="p-3 bg-white rounded-lg shadow-sm border">
-              <h3 className="text-sm font-semibold mb-2">Select Calibration Type</h3>
-              <div className="flex gap-2">
+            <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Calibration Type</h3>
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setCalibrationType('new')}
-                  className="flex-1 py-1 px-2 text-sm rounded transition-all duration-200
-                    bg-blue-500 text-white hover:bg-blue-600"
+                  className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-blue-200
+                    bg-blue-50 hover:bg-blue-100 transition-all duration-200"
                 >
-                  New
+                  <svg className="w-6 h-6 text-blue-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  <span className="text-sm font-medium text-blue-700">New</span>
+                  <span className="text-xs text-blue-600 mt-1">Create calibration</span>
                 </button>
                 <button
                   onClick={() => setCalibrationType('existing')}
-                  className="flex-1 py-1 px-2 text-sm rounded transition-all duration-200
-                    bg-gray-100 hover:bg-gray-200"
+                  className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-gray-200
+                    bg-gray-50 hover:bg-gray-100 transition-all duration-200"
                 >
-                  Existing
+                  <svg className="w-6 h-6 text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-700">Existing</span>
+                  <span className="text-xs text-gray-600 mt-1">Use saved calibration</span>
                 </button>
               </div>
             </div>
           )}
 
-          {/* Existing Calibrations List */}
+          {/* Existing Calibrations List - Enhanced */}
           {calibrationType === 'existing' && (
-            <div className="flex-1 overflow-auto p-3 bg-white rounded-lg shadow-sm border">
-              <h3 className="text-sm font-semibold mb-2">Existing Calibrations</h3>
-              <div className="space-y-2">
+            <div className="flex-1 overflow-auto bg-white rounded-lg shadow-sm border border-gray-200">
+              <div className="p-4 border-b border-gray-100">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-semibold text-gray-700">Existing Calibrations</h3>
+                  <button
+                    onClick={() => setCalibrationType(null)}
+                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 
+                      bg-gray-100 rounded hover:bg-gray-200 transition-all duration-200"
+                  >
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back
+                  </button>
+                </div>
+              </div>
+              <div className="p-3 space-y-2">
                 {Object.entries(existingCalibrations).map(([mag, calibration]) => (
-                  <div key={mag} className="p-2 bg-gray-50 rounded border text-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">{mag}</span>
+                  <div key={mag} 
+                    className={`p-3 rounded-lg border transition-all duration-200 ${
+                      selectedExistingCalibration?.magnification === mag
+                        ? 'bg-blue-50 border-blue-200'
+                        : 'bg-white border-gray-200 hover:border-blue-200'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-800">{mag}</h4>
+                        <div className="mt-1 space-y-0.5">
+                          <p className="text-xs text-gray-600">
+                            Scale: {calibration.calibrationFactor.toFixed(4)} px/μm
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(calibration.timestamp).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
                       <button
                         onClick={() => handleUseCalibration(calibration)}
-                        className="px-2 py-1 text-xs bg-blue-500 text-white rounded"
+                        className={`px-2 py-1 text-xs font-medium rounded-md transition-all duration-200 ${
+                          selectedExistingCalibration?.magnification === mag
+                            ? 'bg-blue-200 text-blue-800'
+                            : 'bg-blue-500 text-white hover:bg-blue-600'
+                        }`}
                       >
-                        Use
+                        {selectedExistingCalibration?.magnification === mag ? 'In Use' : 'Use'}
                       </button>
-                    </div>
-                    <div className="mt-1 text-xs text-gray-600">
-                      <p>Scale: {calibration.calibrationFactor.toFixed(4)} px/μm</p>
-                      <p>Date: {new Date(calibration.timestamp).toLocaleDateString()}</p>
                     </div>
                   </div>
                 ))}
@@ -709,75 +782,108 @@ const CameraCalibrate = ({ imagePath }) => {
             </div>
           )}
 
-          {/* New Calibration Controls */}
+          {/* New Calibration Controls - Enhanced */}
           {calibrationType === 'new' && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {/* Magnification Selection */}
-              <div className="p-3 bg-white rounded-lg shadow-sm border">
-                <h3 className="text-sm font-semibold mb-2">Magnification</h3>
+              <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Magnification</h3>
                 <select
                   value={magnification}
                   onChange={(e) => setMagnification(e.target.value)}
-                  className="w-full px-2 py-1 text-sm border rounded"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="50x">50x</option>
-                  <option value="100x">100x</option>
-                  <option value="200x">200x</option>
-                  <option value="500x">500x</option>
-                  <option value="1000x">1000x</option>
+                  <option value="50x">50x Magnification</option>
+                  <option value="100x">100x Magnification</option>
+                  <option value="200x">200x Magnification</option>
+                  <option value="500x">500x Magnification</option>
+                  <option value="1000x">1000x Magnification</option>
                 </select>
               </div>
 
               {/* Unit Selection */}
-              <div className="p-3 bg-white rounded-lg shadow-sm border">
-                <h3 className="text-sm font-semibold mb-2">Unit</h3>
-                <select
-                  value={unit}
-                  onChange={(e) => handleUnitChange(e.target.value)}
-                  className="w-full px-2 py-1 text-sm border rounded"
-                >
-                  <option value="microns">Microns (μm)</option>
-                  <option value="mm">Millimeters (mm)</option>
-                  <option value="cm">Centimeters (cm)</option>
-                </select>
+              <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Measurement Unit</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: 'microns', label: 'Microns (μm)', icon: 'μm' },
+                    { value: 'mm', label: 'Millimeters', icon: 'mm' },
+                    { value: 'cm', label: 'Centimeters', icon: 'cm' }
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => handleUnitChange(option.value)}
+                      className={`p-2 rounded-lg border-2 transition-all duration-200 ${
+                        unit === option.value
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-blue-200'
+                      }`}
+                    >
+                      <span className="text-lg font-medium">{option.icon}</span>
+                      <p className="text-xs mt-1">{option.label}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Measurement Input */}
-              <div className="p-3 bg-white rounded-lg shadow-sm border">
-                <h3 className="text-sm font-semibold mb-2">Measurement</h3>
+              <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Measurement Value</h3>
                 <div className="flex gap-2">
-                  <input
-                    type="number"
-                    value={measurementValue}
-                    onChange={(e) => setMeasurementValue(e.target.value)}
-                    placeholder={`Value in ${unit}`}
-                    className="flex-1 px-2 py-1 text-sm border rounded"
-                  />
-                  <span className="inline-flex items-center px-2 text-sm text-gray-600 bg-gray-100 rounded">
-                    {unit}
-                  </span>
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      value={measurementValue}
+                      onChange={(e) => setMeasurementValue(e.target.value)}
+                      placeholder={`Enter value`}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md
+                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <span className="text-sm text-gray-500">{unit}</span>
+                    </div>
+                  </div>
                 </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Draw a line on the image, then enter its known measurement
+                </p>
               </div>
             </div>
           )}
 
-          {/* Calibration Info */}
+          {/* Calibration Info - Enhanced */}
           {realScale.x > 0 && (
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <h3 className="text-sm font-semibold text-blue-900 mb-2">Calibration Info</h3>
-              <div className="space-y-1 text-sm text-blue-800">
-                <p>Scale: {realScale.x.toFixed(4)} px/{unit}</p>
-                <p>Resolution: {(1/realScale.x).toFixed(4)} {unit}/px</p>
-                <p>Status: ✓ Calibrated</p>
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">Current Calibration</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-blue-800">Scale Factor:</span>
+                  <span className="text-sm font-medium text-blue-900">
+                    {realScale.x.toFixed(4)} px/{unit}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-blue-800">Resolution:</span>
+                  <span className="text-sm font-medium text-blue-900">
+                    {(1/realScale.x).toFixed(4)} {unit}/px
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-blue-800">Status:</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    ✓ Calibrated
+                  </span>
+                </div>
               </div>
             </div>
           )}
         </div>
 
         {/* Right Panel - Canvas and Results */}
-        <div className="flex-1 flex flex-col gap-2 min-w-0">
-          {/* Canvas Area */}
-          <div className="flex-1 relative bg-gray-50 rounded-lg border overflow-hidden">
+        <div className="flex-1 flex flex-col gap-3 min-w-0">
+          {/* Canvas Area - Enhanced */}
+          <div className="flex-1 relative bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <canvas
               ref={canvasRef}
               onMouseDown={handleMouseDown}
@@ -789,26 +895,39 @@ const CameraCalibrate = ({ imagePath }) => {
             
             {/* Status Badge */}
             {image && (
-              <div className="absolute top-2 right-2">
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                  {canDrawLine ? (calibrationLine.start ? '✏️ Enter Measurement' : '✏️ Draw Line') : '✓ Calibrated'}
+              <div className="absolute top-3 right-3">
+                <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium
+                  ${canDrawLine 
+                    ? 'bg-blue-100 text-blue-800'
+                    : 'bg-green-100 text-green-800'}`}
+                >
+                  {canDrawLine 
+                    ? (calibrationLine.start ? '✏️ Enter Measurement' : '✏️ Draw Line')
+                    : '✓ Calibrated'}
                 </span>
               </div>
             )}
           </div>
 
-          {/* Results Panel */}
+          {/* Results Panel - Enhanced */}
           {(lines.length > 0 || image) && (
-            <div className="h-32 flex gap-2">
+            <div className="h-36 flex gap-3">
               {/* Measurements */}
               {lines.length > 0 && (
-                <div className="flex-1 p-2 bg-gray-50 rounded-lg border text-sm">
-                  <h3 className="font-semibold mb-1">Measurements</h3>
-                  <div className="space-y-1">
+                <div className="flex-1 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Measurements</h3>
+                  <div className="space-y-2">
                     {lines.map((line, index) => (
-                      <div key={index} className="flex justify-between">
-                        <span>Measurement {index + 1}:</span>
-                        <span>{line.measurement.toFixed(2)} {line.unit} ({Math.round(line.pixelDistance)} px)</span>
+                      <div key={index} className="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span className="text-sm text-gray-600">Measurement {index + 1}:</span>
+                        <div className="text-right">
+                          <span className="text-sm font-medium text-gray-900">
+                            {line.measurement.toFixed(2)} {line.unit}
+                          </span>
+                          <span className="ml-2 text-xs text-gray-500">
+                            ({Math.round(line.pixelDistance)} px)
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -817,12 +936,14 @@ const CameraCalibrate = ({ imagePath }) => {
 
               {/* Image Details */}
               {image && (
-                <div className="flex-1 p-2 bg-gray-50 rounded-lg border text-sm">
-                  <h3 className="font-semibold mb-1">Image Details</h3>
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <span>Size:</span>
-                      <span>{originalDimensions.width} × {originalDimensions.height} px</span>
+                <div className="flex-1 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Image Details</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center py-1 border-b border-gray-100">
+                      <span className="text-sm text-gray-600">Resolution:</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {originalDimensions.width} × {originalDimensions.height} px
+                      </span>
                     </div>
                     {realScale.x && (
                       <>

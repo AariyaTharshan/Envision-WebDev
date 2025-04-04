@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FaMousePointer, 
   FaEraser,
@@ -65,11 +65,12 @@ const Toolbar = ({
   measurementData, 
   onClearShapes,
   onColorChange,
-  onThicknessChange,
   onFontColorChange,
-  currentColor = '#00ff00',
-  currentFontColor = '#ffffff',
-  currentThickness = 2
+  onThicknessChange,
+  currentColor,
+  currentFontColor,
+  currentThickness,
+  currentCalibration
 }) => {
   const [showTooltip, setShowTooltip] = useState(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -137,6 +138,22 @@ const Toolbar = ({
       ]
     }
   ];
+
+  // Add useEffect to load current calibration from localStorage
+  const [calibrationInfo, setCalibrationInfo] = useState(null);
+  
+  useEffect(() => {
+    const loadCalibration = () => {
+      const savedCalibration = localStorage.getItem('currentCalibration');
+      if (savedCalibration) {
+        setCalibrationInfo(JSON.parse(savedCalibration));
+      }
+    };
+
+    loadCalibration();
+    window.addEventListener('storage', loadCalibration);
+    return () => window.removeEventListener('storage', loadCalibration);
+  }, []);
 
   return (
     <div className="bg-white border-b shadow-sm h-full">
@@ -371,7 +388,7 @@ const Toolbar = ({
                     </div>
                   </div>
                 )}
-          </div>
+              </div>
 
               {/* Clear Button */}
               <button
@@ -384,6 +401,22 @@ const Toolbar = ({
             </div>
           </div>
         </div>
+
+        {/* Add calibration info display */}
+        {calibrationInfo && (
+          <div className="flex items-center text-xs text-gray-600">
+            <span className="bg-blue-50 px-2 py-1 rounded-full border border-blue-100">
+              {calibrationInfo.magnification} • {calibrationInfo.calibrationFactor.toFixed(4)} px/μm
+            </span>
+          </div>
+        )}
+
+        {/* Existing measurement display */}
+        {measurementData && (
+          <div className="text-sm text-gray-600">
+            {/* ... existing measurement display ... */}
+          </div>
+        )}
       </div>
 
       {/* Quick Help */}

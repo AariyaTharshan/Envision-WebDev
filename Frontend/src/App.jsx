@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Navbar from './components/Navbar'
 import Toolbar from './components/Toolbar'
 import ControlBox from './components/ControlBox'
@@ -16,6 +16,20 @@ const App = () => {
   const [currentColor, setCurrentColor] = useState('#00ff00');
   const [currentFontColor, setCurrentFontColor] = useState('#ffffff');
   const [currentThickness, setCurrentThickness] = useState(2);
+  const [currentCalibration, setCurrentCalibration] = useState(null);
+
+  useEffect(() => {
+    const loadCalibration = () => {
+      const savedCalibration = localStorage.getItem('currentCalibration');
+      if (savedCalibration) {
+        setCurrentCalibration(JSON.parse(savedCalibration));
+      }
+    };
+
+    loadCalibration();
+    window.addEventListener('storage', loadCalibration);
+    return () => window.removeEventListener('storage', loadCalibration);
+  }, []);
 
   const handleImageLoad = (url) => {
     setCurrentImageUrl(url);
@@ -69,6 +83,7 @@ const App = () => {
           currentColor={currentColor}
           currentFontColor={currentFontColor}
           currentThickness={currentThickness}
+          currentCalibration={currentCalibration}
         />
       </div>
       <div className="flex-1 relative overflow-hidden">

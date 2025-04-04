@@ -6,33 +6,7 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath, onFolderChange 
   const [location, setLocation] = useState('C:\\Users\\Public\\MicroScope_Images');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [calibrations, setCalibrations] = useState({});
-  const [currentCalibration, setCurrentCalibration] = useState(null);
   const magnificationOptions = ['50x', '100x', '200x'];
-
-  // Load calibrations on component mount
-  useEffect(() => {
-    loadCalibrations();
-  }, []);
-
-  // Load calibrations from localStorage
-  const loadCalibrations = () => {
-    const savedCalibrations = localStorage.getItem('calibrations');
-    if (savedCalibrations) {
-      setCalibrations(JSON.parse(savedCalibrations));
-    }
-  };
-
-  // Update current calibration when magnification changes
-  useEffect(() => {
-    if (calibrations[magnification]) {
-      setCurrentCalibration(calibrations[magnification]);
-      // Dispatch storage event to notify other components
-      window.dispatchEvent(new Event('storage'));
-    } else {
-      setCurrentCalibration(null);
-    }
-  }, [magnification, calibrations]);
 
   const handleRecord = async () => {
     try {
@@ -110,7 +84,7 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath, onFolderChange 
 
       const response = await fetch('http://localhost:5000/api/import-image', {
         method: 'POST',
-        body: formData
+        body: formData // Don't set Content-Type, browser will set it automatically
       });
 
       if (!response.ok) {
@@ -140,6 +114,7 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath, onFolderChange 
           onFolderChange(folderPath);
         }
         
+        // Update server with new save path
         const response = await fetch('http://localhost:5000/api/set-save-path', {
           method: 'POST',
           headers: {
@@ -161,11 +136,12 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath, onFolderChange 
     }
   };
 
+  // Add this useEffect to set initial folder path
   useEffect(() => {
     if (onFolderChange && location) {
       onFolderChange(location);
     }
-  }, []);
+  }, []); // Run once on mount
 
   const handleMagnificationChange = async (newMag) => {
     setMagnification(newMag);
@@ -202,7 +178,7 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath, onFolderChange 
     <div className="bg-white rounded-lg shadow-xl p-4 w-full border border-gray-200">
       {/* Control Buttons Row */}
       <div className="flex justify-between mb-4 gap-2">
-        {/* Record Button */}
+        {/* Record Button - Updated with camcorder icon */}
         <button
           onClick={handleRecord}
           className={`w-12 h-12 rounded-full flex items-center justify-center transition-all
@@ -276,29 +252,18 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath, onFolderChange 
           </div>
         </div>
 
-        {/* Magnification Selection with Calibration Status */}
+        {/* Magnification Compact Dropdown */}
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600 w-24">Magnification:</label>
-          <div className="flex-1 flex items-center gap-2">
-            <select
-              value={magnification}
-              onChange={(e) => handleMagnificationChange(e.target.value)}
-              className="flex-1 p-1 border rounded text-sm"
-            >
-              {magnificationOptions.map(option => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-            {currentCalibration ? (
-              <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-                ✓ Calibrated
-              </span>
-            ) : (
-              <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
-                ⚠️ Not Calibrated
-              </span>
-            )}
-          </div>
+          <select
+            value={magnification}
+            onChange={(e) => handleMagnificationChange(e.target.value)}
+            className="flex-1 p-1 border rounded text-sm"
+          >
+            {magnificationOptions.map(option => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
         </div>
 
         {/* Date Range */}
