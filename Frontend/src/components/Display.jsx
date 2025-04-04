@@ -63,20 +63,26 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
   // Load calibration data when component mounts
   useEffect(() => {
     const loadCalibration = () => {
-      const savedCalibration = localStorage.getItem('currentCalibration');
-      if (savedCalibration) {
+      const savedSettings = localStorage.getItem('cameraSettings');
+      if (savedSettings) {
         try {
-          const calibData = JSON.parse(savedCalibration);
-          setCalibrationFactor(calibData.calibrationFactor);
-          setCalibrationScale(`1 pixel = ${(1/calibData.calibrationFactor).toFixed(3)} ${calibData.unit}`);
+          const settings = JSON.parse(savedSettings);
+          // Get calibration data for the selected magnification
+          fetch(`http://localhost:5000/api/get-calibration?magnification=${settings.magnification}`)
+            .then(response => response.json())
+            .then(data => {
+              if (data.status === 'success') {
+                setCalibrationFactor(data.calibrationFactor); // microns/pixel
+                // Set the scale text
+                setCalibrationScale(`1 pixel = ${data.calibrationFactor.toFixed(3)} microns`);
+              }
+            })
+            .catch(error => {
+              console.error('Error loading calibration:', error);
+            });
         } catch (error) {
           console.error('Error loading calibration:', error);
-          setCalibrationFactor(null);
-          setCalibrationScale('');
         }
-      } else {
-        setCalibrationFactor(null);
-        setCalibrationScale('');
       }
     };
 
@@ -1098,22 +1104,14 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     const loadCalibration = () => {
       const savedCalibration = localStorage.getItem('currentCalibration');
       if (savedCalibration) {
-        try {
-          const calibData = JSON.parse(savedCalibration);
-          setCalibrationFactor(calibData.calibrationFactor);
-          setCalibrationScale(`1 pixel = ${(1/calibData.calibrationFactor).toFixed(3)} ${calibData.unit}`);
-        } catch (error) {
-          console.error('Error loading calibration:', error);
-          setCalibrationFactor(null);
-          setCalibrationScale('');
-        }
-      } else {
-        setCalibrationFactor(null);
-        setCalibrationScale('');
+        const calibData = JSON.parse(savedCalibration);
+        setCurrentCalibration(calibData);
+        console.log('Loaded calibration:', calibData); // For debugging
       }
     };
 
     loadCalibration();
+    // Listen for calibration changes
     window.addEventListener('storage', loadCalibration);
     return () => window.removeEventListener('storage', loadCalibration);
   }, []);

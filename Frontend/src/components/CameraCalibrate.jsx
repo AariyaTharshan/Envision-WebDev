@@ -501,75 +501,6 @@ const CameraCalibrate = ({ imagePath }) => {
     }
   };
 
-  // Add calibration type selection component
-  const CalibrationType = () => (
-    <div className="mb-8 bg-white p-6 rounded-xl shadow-md">
-      <h3 className="text-xl font-semibold mb-4">Select Calibration Type</h3>
-      <div className="flex gap-4">
-        <button
-          onClick={() => setCalibrationType('new')}
-          className={`flex-1 py-3 px-6 rounded-lg transition-all duration-200 ${
-            calibrationType === 'new'
-              ? 'bg-blue-500 text-white'
-              : 'bg-gray-100 hover:bg-gray-200'
-          }`}
-        >
-          New Calibration
-        </button>
-        <button
-          onClick={() => setCalibrationType('existing')}
-          className={`flex-1 py-3 px-6 rounded-lg transition-all duration-200 ${
-            calibrationType === 'existing'
-              ? 'bg-blue-500 text-white'
-              : 'bg-gray-100 hover:bg-gray-200'
-          }`}
-        >
-          Use Existing Calibration
-        </button>
-      </div>
-    </div>
-  );
-
-  // Modify the ExistingCalibrations component to show more details
-  const ExistingCalibrations = () => {
-    return (
-      <div className="space-y-6">
-          {Object.entries(existingCalibrations).map(([mag, calibration]) => (
-          <div key={mag} className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-            <div className="flex justify-between items-start">
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-gray-700">{mag}</h3>
-                <div className="space-y-1 text-sm">
-                  <p className="text-gray-600">
-                    <span className="font-medium">Scale Factor:</span>{' '}
-                    {calibration.calibrationFactor.toFixed(4)} pixels/micron
-                  </p>
-                  <p className="text-gray-600">
-                    <span className="font-medium">Resolution:</span>{' '}
-                    {(1/calibration.calibrationFactor).toFixed(4)} microns/pixel
-                  </p>
-                  <p className="text-gray-600">
-                    <span className="font-medium">Calibrated:</span>{' '}
-                    {new Date(calibration.timestamp).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-                  <button
-                onClick={() => handleUseCalibration(calibration)}
-                    className={`px-4 py-2 rounded-lg transition-all duration-200 
-                  ${selectedExistingCalibration?.timestamp === calibration.timestamp 
-                    ? 'bg-green-100 text-green-700 border border-green-300' 
-                    : 'bg-blue-500 text-white hover:bg-blue-600'}`}
-              >
-                {selectedExistingCalibration?.timestamp === calibration.timestamp ? 'In Use' : 'Use'}
-                  </button>
-                </div>
-            </div>
-          ))}
-    </div>
-  );
-  };
-
   // Update handleUseCalibration function
   const handleUseCalibration = (calibration) => {
     // Save the selected calibration to localStorage
@@ -682,252 +613,236 @@ const CameraCalibrate = ({ imagePath }) => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-8 bg-white rounded-xl shadow-2xl">
-      {/* Header Section */}
-      <div className="mb-8 border-b pb-4">
-        <h2 className="text-3xl font-bold text-gray-800 mb-2">Camera Calibration</h2>
-        <p className="text-gray-600">Calibrate your microscope camera for precise measurements</p>
-      </div>
-
-      {/* Calibration Type Selection */}
-      {!calibrationType && <CalibrationType />}
-
-      {/* Existing Calibrations */}
-      {calibrationType === 'existing' && <ExistingCalibrations />}
-
-      {/* New Calibration Controls */}
-      {calibrationType === 'new' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Magnification Selection */}
-          <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700">1. Select Magnification</h3>
-            <select
-              value={magnification}
-              onChange={(e) => setMagnification(e.target.value)}
-              className="w-full px-4 py-3 border rounded-lg bg-white
-                focus:outline-none focus:ring-2 focus:ring-blue-500
-                transition-all duration-200"
-            >
-              <option value="50x">50x</option>
-              <option value="100x">100x</option>
-              <option value="200x">200x</option>
-              <option value="500x">500x</option>
-              <option value="1000x">1000x</option>
-            </select>
-          </div>
-
-        {/* Unit Selection Section */}
-        <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700">2. Select Unit</h3>
-          <select 
-            value={unit}
-            onChange={(e) => handleUnitChange(e.target.value)}
-            className="w-full px-4 py-3 border rounded-lg bg-white
-              focus:outline-none focus:ring-2 focus:ring-blue-500
-              transition-all duration-200"
+    <div className="h-screen flex flex-col p-4 bg-white">
+      {/* Header - Compact */}
+      <div className="flex items-center justify-between mb-2 pb-2 border-b">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800">Camera Calibration</h2>
+          <p className="text-sm text-gray-600">Calibrate your microscope camera for precise measurements</p>
+        </div>
+        
+        {/* Action Buttons - Moved to header */}
+        <div className="flex gap-2">
+          <button
+            onClick={handleMeasurementSubmit}
+            disabled={!calibrationLine.start || !measurementValue || !canDrawLine}
+            className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 
+              disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            <option value="microns">Microns (μm)</option>
-            <option value="mm">Millimeters (mm)</option>
-            <option value="cm">Centimeters (cm)</option>
-          </select>
-        </div>
-
-        {/* Measurement Input Section */}
-        <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700">3. Enter Measurement</h3>
-          <div className="flex space-x-2">
-            <input
-              type="number"
-              value={measurementValue}
-              onChange={(e) => setMeasurementValue(e.target.value)}
-              placeholder={`Value in ${unit}`}
-              className="flex-1 px-4 py-3 border rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-blue-500
-                disabled:bg-gray-100 disabled:cursor-not-allowed
-                transition-all duration-200"
-              disabled={!calibrationLine.start || !canDrawLine || lines.length > 0}
-            />
-            <span className="inline-flex items-center px-3 py-3 text-gray-600 bg-gray-100 rounded-lg">
-              {unit}
-            </span>
-          </div>
+            Calibrate
+          </button>
+          <button
+            onClick={saveImage}
+            disabled={!image}
+            className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 
+              disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            Save
+          </button>
+          <button
+            onClick={handleSaveCalibration}
+            disabled={!realScale.x}
+            className="px-3 py-1 bg-purple-500 text-white text-sm rounded hover:bg-purple-600 
+              disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            Save Cal.
+          </button>
+          <button
+            onClick={resetCalibration}
+            className="px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
+          >
+            Reset
+          </button>
         </div>
       </div>
-      )}
 
-      {/* Canvas Section */}
-      <div className="relative mb-8">
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-          <div className="relative border-2 border-gray-200 rounded-lg overflow-hidden">
+      {/* Main Content Area */}
+      <div className="flex-1 flex gap-4 min-h-0">
+        {/* Left Panel - Controls */}
+        <div className="w-64 flex flex-col gap-2">
+          {/* Calibration Type Selection */}
+          {!calibrationType && (
+            <div className="p-3 bg-white rounded-lg shadow-sm border">
+              <h3 className="text-sm font-semibold mb-2">Select Calibration Type</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCalibrationType('new')}
+                  className="flex-1 py-1 px-2 text-sm rounded transition-all duration-200
+                    bg-blue-500 text-white hover:bg-blue-600"
+                >
+                  New
+                </button>
+                <button
+                  onClick={() => setCalibrationType('existing')}
+                  className="flex-1 py-1 px-2 text-sm rounded transition-all duration-200
+                    bg-gray-100 hover:bg-gray-200"
+                >
+                  Existing
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Existing Calibrations List */}
+          {calibrationType === 'existing' && (
+            <div className="flex-1 overflow-auto p-3 bg-white rounded-lg shadow-sm border">
+              <h3 className="text-sm font-semibold mb-2">Existing Calibrations</h3>
+              <div className="space-y-2">
+                {Object.entries(existingCalibrations).map(([mag, calibration]) => (
+                  <div key={mag} className="p-2 bg-gray-50 rounded border text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">{mag}</span>
+                      <button
+                        onClick={() => handleUseCalibration(calibration)}
+                        className="px-2 py-1 text-xs bg-blue-500 text-white rounded"
+                      >
+                        Use
+                      </button>
+                    </div>
+                    <div className="mt-1 text-xs text-gray-600">
+                      <p>Scale: {calibration.calibrationFactor.toFixed(4)} px/μm</p>
+                      <p>Date: {new Date(calibration.timestamp).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* New Calibration Controls */}
+          {calibrationType === 'new' && (
+            <div className="space-y-2">
+              {/* Magnification Selection */}
+              <div className="p-3 bg-white rounded-lg shadow-sm border">
+                <h3 className="text-sm font-semibold mb-2">Magnification</h3>
+                <select
+                  value={magnification}
+                  onChange={(e) => setMagnification(e.target.value)}
+                  className="w-full px-2 py-1 text-sm border rounded"
+                >
+                  <option value="50x">50x</option>
+                  <option value="100x">100x</option>
+                  <option value="200x">200x</option>
+                  <option value="500x">500x</option>
+                  <option value="1000x">1000x</option>
+                </select>
+              </div>
+
+              {/* Unit Selection */}
+              <div className="p-3 bg-white rounded-lg shadow-sm border">
+                <h3 className="text-sm font-semibold mb-2">Unit</h3>
+                <select
+                  value={unit}
+                  onChange={(e) => handleUnitChange(e.target.value)}
+                  className="w-full px-2 py-1 text-sm border rounded"
+                >
+                  <option value="microns">Microns (μm)</option>
+                  <option value="mm">Millimeters (mm)</option>
+                  <option value="cm">Centimeters (cm)</option>
+                </select>
+              </div>
+
+              {/* Measurement Input */}
+              <div className="p-3 bg-white rounded-lg shadow-sm border">
+                <h3 className="text-sm font-semibold mb-2">Measurement</h3>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={measurementValue}
+                    onChange={(e) => setMeasurementValue(e.target.value)}
+                    placeholder={`Value in ${unit}`}
+                    className="flex-1 px-2 py-1 text-sm border rounded"
+                  />
+                  <span className="inline-flex items-center px-2 text-sm text-gray-600 bg-gray-100 rounded">
+                    {unit}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Calibration Info */}
+          {realScale.x > 0 && (
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">Calibration Info</h3>
+              <div className="space-y-1 text-sm text-blue-800">
+                <p>Scale: {realScale.x.toFixed(4)} px/{unit}</p>
+                <p>Resolution: {(1/realScale.x).toFixed(4)} {unit}/px</p>
+                <p>Status: ✓ Calibrated</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Panel - Canvas and Results */}
+        <div className="flex-1 flex flex-col gap-2 min-w-0">
+          {/* Canvas Area */}
+          <div className="flex-1 relative bg-gray-50 rounded-lg border overflow-hidden">
             <canvas
               ref={canvasRef}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              className={`max-w-full h-auto ${
-                canDrawLine ? 'cursor-crosshair' : 'cursor-default'
-              }`}
+              className={`w-full h-full ${canDrawLine ? 'cursor-crosshair' : 'cursor-default'}`}
             />
             
             {/* Status Badge */}
             {image && (
-              <div className="absolute top-4 right-4">
-                {canDrawLine ? (
-                  <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800 shadow-sm">
-                    {calibrationLine.start ? '✏️ Enter Measurement' : '✏️ Draw Line'}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-green-100 text-green-800 shadow-sm">
-                    ✓ Calibrated
-                  </span>
-                )}
+              <div className="absolute top-2 right-2">
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  {canDrawLine ? (calibrationLine.start ? '✏️ Enter Measurement' : '✏️ Draw Line') : '✓ Calibrated'}
+                </span>
               </div>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Action Buttons */}
-      <div className="flex justify-center gap-4 mb-8">
-        <button
-          onClick={handleMeasurementSubmit}
-          disabled={!calibrationLine.start || !measurementValue || !canDrawLine}
-          className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
-            disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200
-            flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-              d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
-          </svg>
-          Calibrate
-        </button>
-
-        <button
-          onClick={saveImage}
-          disabled={!image}
-          className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 
-            disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200
-            flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L12 8m4-4v12" />
-          </svg>
-          Save Image
-        </button>
-
-        <button
-          onClick={handleSaveCalibration}
-          disabled={!realScale.x}
-          className="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 
-            disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200
-            flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-              d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-          </svg>
-          Save Calibration
-        </button>
-
-        <button
-          onClick={resetCalibration}
-          className="px-6 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 
-            transition-all duration-200 flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Reset
-        </button>
-      </div>
-
-      {/* Info Panels */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Measurements Panel */}
-        {lines.length > 0 && (
-          <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700">Calibration Results</h3>
-            <ul className="space-y-3">
-              {lines.map((line, index) => (
-                <li key={index} className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm">
-                  <span className="text-gray-700">Measurement {index + 1}:</span>
-                  <span className="font-medium text-gray-900">
-                    {line.measurement.toFixed(2)} {line.unit}
-                    <span className="ml-2 text-gray-500 text-sm">
-                      ({Math.round(line.pixelDistance)} px)
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Image Information Panel */}
-        {image && (
-          <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700">Image Details</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between p-3 bg-white rounded-lg shadow-sm">
-                <span className="text-gray-700">Original Size:</span>
-                <span className="font-medium text-gray-900">
-                  {originalDimensions.width} × {originalDimensions.height} px
-                </span>
-              </div>
-              {realScale.x && (
-                <>
-                  <div className="flex justify-between p-3 bg-white rounded-lg shadow-sm">
-                    <span className="text-gray-700">Calibrated Width:</span>
-                    <span className="font-medium text-gray-900">
-                      {(originalDimensions.width / realScale.x).toFixed(2)} {unit}
-                    </span>
+          {/* Results Panel */}
+          {(lines.length > 0 || image) && (
+            <div className="h-32 flex gap-2">
+              {/* Measurements */}
+              {lines.length > 0 && (
+                <div className="flex-1 p-2 bg-gray-50 rounded-lg border text-sm">
+                  <h3 className="font-semibold mb-1">Measurements</h3>
+                  <div className="space-y-1">
+                    {lines.map((line, index) => (
+                      <div key={index} className="flex justify-between">
+                        <span>Measurement {index + 1}:</span>
+                        <span>{line.measurement.toFixed(2)} {line.unit} ({Math.round(line.pixelDistance)} px)</span>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex justify-between p-3 bg-white rounded-lg shadow-sm">
-                    <span className="text-gray-700">Calibrated Height:</span>
-                    <span className="font-medium text-gray-900">
-                      {(originalDimensions.height / realScale.x).toFixed(2)} {unit}
-                    </span>
+                </div>
+              )}
+
+              {/* Image Details */}
+              {image && (
+                <div className="flex-1 p-2 bg-gray-50 rounded-lg border text-sm">
+                  <h3 className="font-semibold mb-1">Image Details</h3>
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span>Size:</span>
+                      <span>{originalDimensions.width} × {originalDimensions.height} px</span>
+                    </div>
+                    {realScale.x && (
+                      <>
+                        <div className="flex justify-between">
+                          <span>Width:</span>
+                          <span>{(originalDimensions.width / realScale.x).toFixed(2)} {unit}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Height:</span>
+                          <span>{(originalDimensions.height / realScale.x).toFixed(2)} {unit}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="flex justify-between p-3 bg-white rounded-lg shadow-sm">
-                    <span className="text-gray-700">Scale:</span>
-                    <span className="font-medium text-gray-900">
-                      1 {unit} = {realScale.x.toFixed(2)} pixels
-                    </span>
-                  </div>
-                </>
+                </div>
               )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-
-      {/* Instructions Panel */}
-      <div className="mt-8 bg-blue-50 p-6 rounded-xl border border-blue-100">
-        <h3 className="text-lg font-semibold mb-4 text-blue-900">Quick Guide</h3>
-        <ol className="space-y-3">
-          {[
-            "Select your preferred measurement unit",
-            "Draw a calibration line by clicking and dragging",
-            "Enter the known measurement value",
-            "The axes will update to show calibrated measurements",
-            "Use 'New Calibration' to start over if needed",
-            "Save your calibrated image"
-          ].map((step, index) => (
-            <li key={index} className="flex items-start space-x-3">
-              <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-200 text-blue-800 font-medium">
-                {index + 1}
-              </span>
-              <span className="text-blue-800">{step}</span>
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      <CalibrationInfo realScale={realScale} unit={unit} />
     </div>
   );
 };

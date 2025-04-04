@@ -176,29 +176,6 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath, onFolderChange 
       const settings = savedSettings ? JSON.parse(savedSettings) : null;
       const cameraType = settings ? settings.camera : null;
 
-      // Load calibration for this magnification
-      const savedCalibrations = localStorage.getItem('calibrations');
-      if (savedCalibrations) {
-        const calibrations = JSON.parse(savedCalibrations);
-        if (calibrations[newMag]) {
-          // Found calibration for this magnification, apply it
-          const calibration = calibrations[newMag];
-          localStorage.setItem('currentCalibration', JSON.stringify({
-            magnification: newMag,
-            calibrationFactor: calibration.calibrationFactor,
-            unit: calibration.unit,
-            timestamp: calibration.timestamp
-          }));
-          
-          // Notify other components
-          window.dispatchEvent(new Event('storage'));
-        } else {
-          // No calibration found for this magnification
-          localStorage.removeItem('currentCalibration');
-          window.dispatchEvent(new Event('storage'));
-        }
-      }
-
       // Only send zoom command if camera is HIKERBOT
       if (cameraType === 'HIKERBOT' && isRecording) {
         const response = await fetch('http://localhost:5000/api/set-zoom', {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import Navbar from './components/Navbar'
 import Toolbar from './components/Toolbar'
 import ControlBox from './components/ControlBox'
@@ -16,29 +16,6 @@ const App = () => {
   const [currentColor, setCurrentColor] = useState('#00ff00');
   const [currentFontColor, setCurrentFontColor] = useState('#ffffff');
   const [currentThickness, setCurrentThickness] = useState(2);
-  const [calibrationData, setCalibrationData] = useState(null);
-
-  // Load calibration data when component mounts
-  useEffect(() => {
-    const loadCalibration = () => {
-      const savedCalibration = localStorage.getItem('currentCalibration');
-      if (savedCalibration) {
-        try {
-          const calibData = JSON.parse(savedCalibration);
-          setCalibrationData(calibData);
-        } catch (error) {
-          console.error('Error loading calibration:', error);
-          setCalibrationData(null);
-        }
-      } else {
-        setCalibrationData(null);
-      }
-    };
-
-    loadCalibration();
-    window.addEventListener('storage', loadCalibration);
-    return () => window.removeEventListener('storage', loadCalibration);
-  }, []);
 
   const handleImageLoad = (url) => {
     setCurrentImageUrl(url);
@@ -102,7 +79,6 @@ const App = () => {
               setIsRecording={setIsRecording}
               setImagePath={setImagePath}
               onFolderChange={setCurrentFolderPath}
-              calibrationData={calibrationData}
             />
           </div>
         </div>
@@ -119,7 +95,6 @@ const App = () => {
             currentThickness={currentThickness}
             onColorChange={setCurrentColor}
             onFontColorChange={setCurrentFontColor}
-            calibrationData={calibrationData}
           />
         </div>
 

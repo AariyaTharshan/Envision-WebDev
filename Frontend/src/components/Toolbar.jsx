@@ -100,7 +100,7 @@ const Toolbar = ({
     { value: 4, label: 'Extra Thick' },
     { value: 5, label: 'Maximum' }
   ];
-
+  
   // Group tools by category for better organization
   const toolGroups = [
     {
@@ -139,28 +139,28 @@ const Toolbar = ({
   ];
 
   return (
-    <div className="bg-white border-b shadow-sm">
-      <div className="flex items-center justify-between px-4 py-1">
+    <div className="bg-white border-b shadow-sm h-full">
+      <div className="flex items-center h-full px-2">
         {/* Tool Groups */}
-        <div className="flex space-x-4">
+        <div className="flex space-x-2">
           {toolGroups.map((group) => (
             <div key={group.name} className="flex items-center">
-              <div className="flex items-center space-x-1 px-2 py-1 bg-gray-50 rounded-lg">
-                <span className="text-xs font-medium text-gray-500 mr-2">{group.name}</span>
-                <div className="flex space-x-1">
+              <div className="flex items-center space-x-1 px-1 py-0.5 bg-gray-50 rounded-lg">
+                <span className="text-xs font-medium text-gray-500 mr-1">{group.name}</span>
+                <div className="flex space-x-0.5">
                   {group.tools.map((tool) => (
                     <div key={tool.id} className="relative">
                       <button
                         onClick={() => onSelectTool(tool.id)}
                         onMouseEnter={() => setShowTooltip(tool.id)}
                         onMouseLeave={() => setShowTooltip(null)}
-                        className={`p-1.5 rounded-md transition-all duration-200 relative
+                        className={`p-1 rounded-md transition-all duration-200 relative
                           ${selectedTool === tool.id 
                             ? 'bg-blue-100 text-blue-700 border border-blue-300 shadow-sm' 
                             : 'hover:bg-gray-100 text-gray-700'
                           }`}
                       >
-                        <span className="text-lg">{tool.icon}</span>
+                        <span className="text-base">{tool.icon}</span>
                       </button>
                       
                       {/* Enhanced Tooltip */}
@@ -170,10 +170,10 @@ const Toolbar = ({
                             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mt-1">
                               <div className="border-4 border-transparent border-b-gray-800"></div>
                             </div>
-                            <div className="bg-gray-800 text-white px-2 py-1 rounded-md text-sm shadow-lg">
-                              <p className="font-medium">{tool.label}</p>
-                              <p className="text-xs text-gray-300">{tool.description}</p>
-                            </div>
+                          <div className="bg-gray-800 text-white px-2 py-1 rounded-md text-sm shadow-lg">
+                            <p className="font-medium">{tool.label}</p>
+                            <p className="text-xs text-gray-300">{tool.description}</p>
+                          </div>
                           </div>
                         </div>
                       )}
@@ -186,7 +186,7 @@ const Toolbar = ({
           
           {/* Style Controls and Clear Button */}
           <div className="flex items-center">
-            <div className="flex items-center space-x-2 px-3 py-1.5 bg-gray-50 rounded-lg">
+            <div className="flex items-center space-x-1 px-2 py-0.5 bg-gray-50 rounded-lg">
               <span className="text-xs font-medium text-gray-500">Style</span>
               
               {/* Shape Color Picker */}
@@ -371,7 +371,7 @@ const Toolbar = ({
                     </div>
                   </div>
                 )}
-              </div>
+          </div>
 
               {/* Clear Button */}
               <button
