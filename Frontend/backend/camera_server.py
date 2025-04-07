@@ -1,12 +1,23 @@
+import os
+import sys
+import logging
+
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    filename="logs/camera_server.log",
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+sys.stdout = open("logs/stdout.log", "w")
+sys.stderr = open("logs/stderr.log", "w")
+
 from flask import Flask, Response, jsonify, request, send_file
 from flask_cors import CORS
 import cv2
 import time
 import threading
-import os
-import sys
 from pathlib import Path
-from datetime import 
+from datetime import *
 from PIL import Image
 import numpy as np
 import json
@@ -15,6 +26,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'M
 from MvCameraControl_class import *
 from ctypes import c_float, byref
 import atexit
+
+
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000", "http://localhost:5173"], "methods": ["GET", "POST", "OPTIONS"], "headers": ["Content-Type"]}})

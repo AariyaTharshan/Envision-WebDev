@@ -164,6 +164,7 @@ imports:
  &#8226;   <a href="#keyword">keyword</a>
  &#8226;   <a href="#linecache">linecache</a>
  &#8226;   <a href="#locale">locale</a>
+ &#8226;   <a href="#logging">logging</a>
  &#8226;   <a href="#ntpath">ntpath</a>
  &#8226;   <a href="#numpy">numpy</a>
  &#8226;   <a href="#operator">operator</a>
@@ -520,11 +521,64 @@ imported by:
 </div>
 
 <div class="node">
+  <a name="CameraParams_const"></a>
+  <a target="code" href="///D:/Envision-WebDev/Frontend/backend/CameraParams_const.py" type="text/plain"><tt>CameraParams_const</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imported by:
+    <a href="#CameraParams_header">CameraParams_header</a>
+ &#8226;   <a href="#MvCameraControl_class">MvCameraControl_class</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="CameraParams_header"></a>
+  <a target="code" href="///D:/Envision-WebDev/Frontend/backend/CameraParams_header.py" type="text/plain"><tt>CameraParams_header</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#CameraParams_const">CameraParams_const</a>
+ &#8226;   <a href="#PixelType_header">PixelType_header</a>
+ &#8226;   <a href="#ctypes">ctypes</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#MvCameraControl_class">MvCameraControl_class</a>
+
+  </div>
+
+</div>
+
+<div class="node">
   <a name="MvCameraControl_class"></a>
-  <a target="code" href="" type="text/plain"><tt>MvCameraControl_class</tt></a>
-<span class="moduletype">MissingModule</span>  <div class="import">
+  <a target="code" href="///D:/Envision-WebDev/Frontend/backend/MvCameraControl_class.py" type="text/plain"><tt>MvCameraControl_class</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#CameraParams_const">CameraParams_const</a>
+ &#8226;   <a href="#CameraParams_header">CameraParams_header</a>
+ &#8226;   <a href="#MvErrorDefine_const">MvErrorDefine_const</a>
+ &#8226;   <a href="#PixelType_header">PixelType_header</a>
+ &#8226;   <a href="#copy">copy</a>
+ &#8226;   <a href="#ctypes">ctypes</a>
+ &#8226;   <a href="#os">os</a>
+ &#8226;   <a href="#sys">sys</a>
+
+  </div>
+  <div class="import">
 imported by:
     <a href="#camera_server.py">camera_server.py</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="MvErrorDefine_const"></a>
+  <a target="code" href="///D:/Envision-WebDev/Frontend/backend/MvErrorDefine_const.py" type="text/plain"><tt>MvErrorDefine_const</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imported by:
+    <a href="#MvCameraControl_class">MvCameraControl_class</a>
 
   </div>
 
@@ -2739,6 +2793,23 @@ imported by:
     <a href="#PIL">PIL</a>
  &#8226;   <a href="#PIL.IcnsImagePlugin">PIL.IcnsImagePlugin</a>
  &#8226;   <a href="#PIL.PdfImagePlugin">PIL.PdfImagePlugin</a>
+
+  </div>
+
+</div>
+
+<div class="node">
+  <a name="PixelType_header"></a>
+  <a target="code" href="///D:/Envision-WebDev/Frontend/backend/PixelType_header.py" type="text/plain"><tt>PixelType_header</tt></a>
+<span class="moduletype">SourceModule</span>  <div class="import">
+imports:
+    <a href="#ctypes">ctypes</a>
+
+  </div>
+  <div class="import">
+imported by:
+    <a href="#CameraParams_header">CameraParams_header</a>
+ &#8226;   <a href="#MvCameraControl_class">MvCameraControl_class</a>
 
   </div>
 
@@ -7394,7 +7465,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#PIL.GifImagePlugin">PIL.GifImagePlugin</a>
+    <a href="#MvCameraControl_class">MvCameraControl_class</a>
+ &#8226;   <a href="#PIL.GifImagePlugin">PIL.GifImagePlugin</a>
  &#8226;   <a href="#_sre">_sre</a>
  &#8226;   <a href="#argparse">argparse</a>
  &#8226;   <a href="#collections">collections</a>
@@ -7499,7 +7571,10 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#_ios_support">_ios_support</a>
+    <a href="#CameraParams_header">CameraParams_header</a>
+ &#8226;   <a href="#MvCameraControl_class">MvCameraControl_class</a>
+ &#8226;   <a href="#PixelType_header">PixelType_header</a>
+ &#8226;   <a href="#_ios_support">_ios_support</a>
  &#8226;   <a href="#_pyrepl._minimal_curses">_pyrepl._minimal_curses</a>
  &#8226;   <a href="#_pyrepl.windows_console">_pyrepl.windows_console</a>
  &#8226;   <a href="#camera_server.py">camera_server.py</a>
@@ -15020,6 +15095,7 @@ imported by:
  &#8226;   <a href="#PIL.TiffImagePlugin">PIL.TiffImagePlugin</a>
  &#8226;   <a href="#asyncio.futures">asyncio.futures</a>
  &#8226;   <a href="#asyncio.log">asyncio.log</a>
+ &#8226;   <a href="#camera_server.py">camera_server.py</a>
  &#8226;   <a href="#concurrent.futures._base">concurrent.futures._base</a>
  &#8226;   <a href="#flask.logging">flask.logging</a>
  &#8226;   <a href="#flask.sansio.app">flask.sansio.app</a>
@@ -22940,7 +23016,8 @@ imports:
   </div>
   <div class="import">
 imported by:
-    <a href="#PIL.BlpImagePlugin">PIL.BlpImagePlugin</a>
+    <a href="#MvCameraControl_class">MvCameraControl_class</a>
+ &#8226;   <a href="#PIL.BlpImagePlugin">PIL.BlpImagePlugin</a>
  &#8226;   <a href="#PIL.BmpImagePlugin">PIL.BmpImagePlugin</a>
  &#8226;   <a href="#PIL.EpsImagePlugin">PIL.EpsImagePlugin</a>
  &#8226;   <a href="#PIL.FliImagePlugin">PIL.FliImagePlugin</a>
@@ -29798,7 +29875,8 @@ imported by:
   <a name="sys"></a>
   <tt>sys</tt> <span class="moduletype"><i>(builtin module)</i></span>  <div class="import">
 imported by:
-    <a href="#PIL.DdsImagePlugin">PIL.DdsImagePlugin</a>
+    <a href="#MvCameraControl_class">MvCameraControl_class</a>
+ &#8226;   <a href="#PIL.DdsImagePlugin">PIL.DdsImagePlugin</a>
  &#8226;   <a href="#PIL.EpsImagePlugin">PIL.EpsImagePlugin</a>
  &#8226;   <a href="#PIL.IcnsImagePlugin">PIL.IcnsImagePlugin</a>
  &#8226;   <a href="#PIL.Image">PIL.Image</a>
