@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-const CameraCalibrate = () => {
+const CameraCalibrate = ({ imagePath }) => {
   const [image, setImage] = useState(null);
   const [scale, setScale] = useState({ x: 0, y: 0 }); // pixels per micron
   const [calibrationLine, setCalibrationLine] = useState({ start: null, end: null });
@@ -13,11 +13,44 @@ const CameraCalibrate = () => {
   const [realScale, setRealScale] = useState({ x: 0, y: 0 }); // pixels to unit conversion
   const [currentMeasurement, setCurrentMeasurement] = useState(null);
   const [canDrawLine, setCanDrawLine] = useState(true);
+  const [calibrationData, setCalibrationData] = useState({
+    pixelDistance: 0,
+    actualDistance: 0,
+    unit: 'mm',
+    calibrationFactor: 0
+  });
   
   const canvasRef = useRef(null);
   const imageRef = useRef(null);
 
-  const DISPLAY_WIDTH = 800; // Fixed display width in pixels
+  const [calibrationType, setCalibrationType] = useState(null); // 'new' or 'existing'
+  const [magnification, setMagnification] = useState('100x');
+  const [existingCalibrations, setExistingCalibrations] = useState({});
+  const [selectedExistingCalibration, setSelectedExistingCalibration] = useState(null);
+
+  // Add resolution state
+  const [resolution, setResolution] = useState({ width: 1920, height: 1080 });
+
+  // Add useEffect to load camera settings
+  useEffect(() => {
+    const loadCameraSettings = () => {
+      const savedSettings = localStorage.getItem('cameraSettings');
+      if (savedSettings) {
+        try {
+          const settings = JSON.parse(savedSettings);
+          const [width, height] = settings.resolution.split('x').map(Number);
+          setResolution({ width, height });
+        } catch (error) {
+          console.error('Error loading camera settings:', error);
+        }
+      }
+    };
+
+    loadCameraSettings();
+    // Listen for changes in camera settings
+    window.addEventListener('storage', loadCameraSettings);
+    return () => window.removeEventListener('storage', loadCameraSettings);
+  }, []);
 
   // Add reset calibration function
   const resetCalibration = () => {
@@ -29,49 +62,20 @@ const CameraCalibrate = () => {
     setCurrentMeasurement(null);
   };
 
-  // Modified handleImageUpload
-  const handleImageUpload = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      // Reset all calibration data when new image is uploaded
-      resetCalibration();
-      
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          // Store original dimensions
-          setOriginalDimensions({ width: img.width, height: img.height });
-          
-          // Calculate scale factor
-          const newScaleFactor = DISPLAY_WIDTH / img.width;
-          setScaleFactor(newScaleFactor);
-          
-          setImage(img);
-          imageRef.current = img;
-          initializeCanvas(img);
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Modified initializeCanvas
+  // Modify initializeCanvas to draw image without scaling
   const initializeCanvas = (img) => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Set canvas size to match camera resolution
+    canvas.width = resolution.width;
+    canvas.height = resolution.height;
+
     const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Set canvas size to fixed display dimensions
-    const displayHeight = (img.height / img.width) * DISPLAY_WIDTH;
-    canvas.width = DISPLAY_WIDTH;
-    canvas.height = displayHeight;
-    
-    // Draw scaled image
-    ctx.drawImage(img, 0, 0, DISPLAY_WIDTH, displayHeight);
-    
-    // Draw scale markers
-    drawScaleMarkers(ctx, DISPLAY_WIDTH, displayHeight);
+    // Draw image at full resolution
+    ctx.drawImage(img, 0, 0, resolution.width, resolution.height);
   };
 
   // Modify drawScaleMarkers to show calibrated values
@@ -117,12 +121,14 @@ const CameraCalibrate = () => {
     }
   };
 
-  // Modified mouse event handlers to account for scaling
+  // Modify getScaledCoordinates to get actual coordinates
   const getScaledCoordinates = (clientX, clientY) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = (clientX - rect.left);
-    const y = (clientY - rect.top);
+    
+    // Convert click coordinates to canvas coordinates
+    const x = (clientX - rect.left) * (canvas.width / rect.width);
+    const y = (clientY - rect.top) * (canvas.height / rect.height);
     return { x, y };
   };
 
@@ -144,20 +150,25 @@ const CameraCalibrate = () => {
     
     const { x, y } = getScaledCoordinates(e.clientX, e.clientY);
     setIsDrawing(true);
+    // Start point is where user clicks
     setCalibrationLine({
-      start: { x, y },
-      end: { x, y },
-      measurement: null
+        start: { x, y },
+        end: { x, y },
+        measurement: null
     });
   };
 
+  // Simplify handleMouseMove
   const handleMouseMove = (e) => {
     if (!isDrawing) return;
     
-    const { x, y } = getScaledCoordinates(e.clientX, e.clientY);
+    const coords = getScaledCoordinates(e.clientX, e.clientY);
     setCalibrationLine(prev => ({
-      ...prev,
-      end: { x, y }
+        ...prev,
+        end: { 
+        x: coords.x,
+        y: prev.start.y // Keep y coordinate same as start point
+        }
     }));
   };
 
@@ -174,34 +185,49 @@ const CameraCalibrate = () => {
 
   // Modify handleMeasurementSubmit to handle single calibration
   const handleMeasurementSubmit = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!measurementValue || isNaN(measurementValue)) {
-      alert('Please enter a valid measurement value');
-      return;
+        alert('Please enter a valid measurement value');
+        return;
     }
 
     const value = parseFloat(measurementValue);
-    const pixelDistance = calculatePixelDistance(calibrationLine.start, calibrationLine.end);
+    const pixelDistance = Math.sqrt(
+        Math.pow(calibrationLine.end.x - calibrationLine.start.x, 2)
+    );
 
-    // Calculate pixels per unit (more accurate way)
+    // Calculate pixels per unit
     const pixelsPerUnit = pixelDistance / value;
     setRealScale({ 
-      x: pixelsPerUnit,
-      y: pixelsPerUnit  // Assuming square pixels
+        x: pixelsPerUnit,
+        y: pixelsPerUnit
     });
 
-    // Store calibration line with more metadata
+    // Update calibration data
+    setCalibrationData({
+        pixelDistance: pixelDistance,
+        actualDistance: value,
+        unit: unit,
+        calibrationFactor: pixelsPerUnit
+    });
+
+    // Store calibration line
     setLines([{
-      ...calibrationLine,
-      measurement: value,
-      unit: unit,
-      pixelDistance: pixelDistance,
-      pixelsPerUnit: pixelsPerUnit,
-      calibrationDate: new Date().toISOString()
+        ...calibrationLine,
+        measurement: value,
+        unit: unit,
+        pixelDistance: pixelDistance,
+        pixelsPerUnit: pixelsPerUnit,
+        calibrationDate: new Date().toISOString()
     }]);
 
     setMeasurementValue('');
     setCanDrawLine(false);
+    
+    // Redraw canvas with updated measurements
+    const ctx = canvasRef.current.getContext('2d');
+    drawImage();
+    drawLine(ctx);
   };
 
   // Calculate real-time measurement while drawing
@@ -273,7 +299,22 @@ const CameraCalibrate = () => {
     return originalDistance;
   };
 
-  // Modify the drawing useEffect for lines
+  // Update the image loading effect
+  useEffect(() => {
+    if (imagePath) {
+      const img = new Image();
+      img.onload = () => {
+        // Store original dimensions
+        setOriginalDimensions({ width: img.width, height: img.height });
+        setImage(img);
+        imageRef.current = img;
+        initializeCanvas(img);
+      };
+      img.src = `http://localhost:5000/api/get-image?path=${encodeURIComponent(imagePath)}`;
+    }
+  }, [imagePath, resolution]); // Add resolution to dependencies
+
+  // Update the redraw effect
   useEffect(() => {
     if (!canvasRef.current || !image) return;
     
@@ -282,89 +323,54 @@ const CameraCalibrate = () => {
     
     // Clear and redraw image
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const displayHeight = (image.height / image.width) * DISPLAY_WIDTH;
-    ctx.drawImage(imageRef.current, 0, 0, DISPLAY_WIDTH, displayHeight);
+    ctx.drawImage(image, 0, 0, resolution.width, resolution.height);
     
-    // Draw pixel dimensions
-    ctx.strokeStyle = '#333';
-    ctx.fillStyle = '#333';
-    ctx.font = '12px Arial';
-    
-    // Draw original image dimensions
-    const originalWidth = Math.round(originalDimensions.width);
-    const originalHeight = Math.round(originalDimensions.height);
-    
+    // Draw dimensions info
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(10, 10, 200, 45);
+    ctx.fillRect(10, 10, 200, 30);
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '12px Arial';
     ctx.textAlign = 'left';
-    ctx.fillText(`Original: ${originalWidth} × ${originalHeight} px`, 20, 30);
-    ctx.fillText(`Display: ${Math.round(DISPLAY_WIDTH)} × ${Math.round(displayHeight)} px`, 20, 45);
+    ctx.fillText(`Resolution: ${resolution.width} × ${resolution.height} px`, 20, 30);
 
-    // Draw scale bar if calibrated
-    if (realScale.x) {
-      drawScaleBar(ctx, canvas.width, canvas.height);
-    }
-    
-    // Draw all saved lines
-    lines.forEach(line => {
-      ctx.beginPath();
-      ctx.strokeStyle = '#00FF00';
-      ctx.lineWidth = 2;
-      ctx.moveTo(line.start.x, line.start.y);
-      ctx.lineTo(line.end.x, line.end.y);
-      ctx.stroke();
-
-      // Draw measurement label with real units and original pixels
-      const midX = (line.start.x + line.end.x) / 2;
-      const midY = (line.start.y + line.end.y) / 2;
-      ctx.fillStyle = '#00FF00';
-      ctx.font = '14px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(
-        `${line.measurement.toFixed(2)} ${line.unit} (${Math.round(line.pixelDistance)} px)`, 
-        midX + 10, 
-        midY - 10
-      );
-    });
-    
-    // Draw current calibration line with original pixel length
+    // Draw calibration line with perpendicular ends
     if (calibrationLine.start && calibrationLine.end) {
+      // Draw main horizontal line
       ctx.beginPath();
-      ctx.strokeStyle = '#FF0000';
-      ctx.lineWidth = 2;
       ctx.moveTo(calibrationLine.start.x, calibrationLine.start.y);
-      ctx.lineTo(calibrationLine.end.x, calibrationLine.end.y);
+      ctx.lineTo(calibrationLine.end.x, calibrationLine.start.y);
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Calculate and show original pixel distance while drawing
-      const pixelDistance = calculatePixelDistance(calibrationLine.start, calibrationLine.end);
-      if (pixelDistance) {
+      // Draw perpendicular lines at endpoints
+      const perpLength = 10; // Length of perpendicular lines
+
+      // Left perpendicular line
+      ctx.beginPath();
+      ctx.moveTo(calibrationLine.start.x, calibrationLine.start.y - perpLength);
+      ctx.lineTo(calibrationLine.start.x, calibrationLine.start.y + perpLength);
+      ctx.stroke();
+
+      // Right perpendicular line
+      ctx.beginPath();
+      ctx.moveTo(calibrationLine.end.x, calibrationLine.start.y - perpLength);
+      ctx.lineTo(calibrationLine.end.x, calibrationLine.start.y + perpLength);
+      ctx.stroke();
+
+      // Draw measurement
+      const pixelDistance = Math.abs(calibrationLine.end.x - calibrationLine.start.x);
         const midX = (calibrationLine.start.x + calibrationLine.end.x) / 2;
-        const midY = (calibrationLine.start.y + calibrationLine.end.y) / 2;
-        ctx.fillStyle = '#FF0000';
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'left';
-        
-        // Show real measurement if calibrated
-        if (currentMeasurement) {
-          ctx.fillText(
-            `${currentMeasurement} ${unit} (${Math.round(pixelDistance)} px)`, 
-            midX + 10, 
-            midY - 10
-          );
-        } else {
-          // Show only original pixels if not calibrated yet
-          ctx.fillText(
-            `${Math.round(pixelDistance)} px`, 
-            midX + 10, 
-            midY - 10
-          );
-        }
-      }
+      const midY = calibrationLine.start.y - 20;
+      
+      ctx.fillStyle = 'black';
+      ctx.fillRect(midX - 40, midY - 15, 80, 20);
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${Math.round(pixelDistance)} px`, midX, midY);
     }
-  }, [image, calibrationLine, lines, currentMeasurement, unit, realScale, originalDimensions]);
+
+  }, [image, calibrationLine, resolution]);
 
   // Add unit conversion helper
   const convertUnits = (value, fromUnit, toUnit) => {
@@ -422,239 +428,542 @@ const CameraCalibrate = () => {
     );
   };
 
+  // Add this function to load existing calibrations
+  const loadExistingCalibrations = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/get-calibrations');
+      const data = await response.json();
+      if (data.status === 'success') {
+        setExistingCalibrations(data.calibrations);
+      } else {
+        console.error('Failed to load calibrations:', data.message);
+      }
+    } catch (error) {
+      console.error('Error loading calibrations:', error);
+    }
+  };
+
+  // Add useEffect to load existing calibrations when component mounts
+  useEffect(() => {
+    loadExistingCalibrations();
+  }, []);
+
+  // Add function to handle selecting existing calibration
+  const handleSelectExistingCalibration = (calibration) => {
+    setSelectedExistingCalibration(calibration);
+    setRealScale({
+      x: calibration.calibrationFactor,
+      y: calibration.calibrationFactor
+    });
+    setUnit(calibration.unit);
+    setCanDrawLine(false);
+  };
+
+  // Modify handleSaveCalibration to include magnification
+  const handleSaveCalibration = async () => {
+    try {
+      if (!calibrationData.calibrationFactor) {
+        alert('Please perform calibration first');
+        return;
+      }
+
+      const calibrationToSave = {
+        ...calibrationData,
+        magnification,
+        timestamp: new Date().toISOString()
+      };
+
+      const response = await fetch('http://localhost:5000/api/save-calibration', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          calibrationData: calibrationToSave
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Save calibration response:', data);
+
+      if (data.status === 'success') {
+        alert('Calibration data saved successfully');
+      } else {
+        alert('Failed to save calibration: ' + data.message);
+      }
+    } catch (error) {
+      console.error('Error saving calibration:', error);
+      alert('Error saving calibration: ' + error.message);
+    }
+  };
+
+  // Update handleUseCalibration function
+  const handleUseCalibration = (calibration) => {
+    // Save the selected calibration to localStorage
+    localStorage.setItem('currentCalibration', JSON.stringify({
+      magnification: calibration.magnification,
+      calibrationFactor: calibration.calibrationFactor,
+      unit: calibration.unit,
+      timestamp: calibration.timestamp
+    }));
+
+    // Update UI state
+    setSelectedExistingCalibration(calibration);
+    setRealScale({ 
+      x: calibration.calibrationFactor,
+      y: calibration.calibrationFactor 
+    });
+
+    // Force a storage event to notify other components
+    window.dispatchEvent(new Event('storage'));
+
+    // Close calibration dialog or update UI as needed
+    setCalibrationType(null);
+  };
+
+  // Add delete calibration handler
+  const handleDeleteCalibration = (magnification) => {
+    if (window.confirm(`Are you sure you want to delete the ${magnification} calibration?`)) {
+      // Remove from localStorage
+      const updatedCalibrations = { ...existingCalibrations };
+      delete updatedCalibrations[magnification];
+      localStorage.setItem('calibrations', JSON.stringify(updatedCalibrations));
+      setExistingCalibrations(updatedCalibrations);
+
+      // If this was the selected calibration, clear it
+      if (selectedExistingCalibration?.magnification === magnification) {
+        setSelectedExistingCalibration(null);
+        localStorage.removeItem('currentCalibration');
+      }
+    }
+  };
+
+  const drawLine = (ctx) => {
+    if (calibrationLine.start && calibrationLine.end) {
+      // Draw main horizontal line
+        ctx.beginPath();
+      ctx.moveTo(calibrationLine.start.x, calibrationLine.start.y);
+      ctx.lineTo(calibrationLine.end.x, calibrationLine.start.y);
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+      // Draw perpendicular lines at endpoints
+      const perpLength = 10; // Length of perpendicular lines
+
+      // Left perpendicular line
+        ctx.beginPath();
+      ctx.moveTo(calibrationLine.start.x, calibrationLine.start.y - perpLength);
+      ctx.lineTo(calibrationLine.start.x, calibrationLine.start.y + perpLength);
+      ctx.stroke();
+
+      // Right perpendicular line
+        ctx.beginPath();
+      ctx.moveTo(calibrationLine.end.x, calibrationLine.start.y - perpLength);
+      ctx.lineTo(calibrationLine.end.x, calibrationLine.start.y + perpLength);
+      ctx.stroke();
+
+      // Draw pixel distance
+      const pixelDistance = Math.abs(calibrationLine.end.x - calibrationLine.start.x);
+      const midX = (calibrationLine.start.x + calibrationLine.end.x) / 2;
+      const midY = calibrationLine.start.y - 20;
+
+      ctx.fillStyle = 'black';
+      ctx.fillRect(midX - 40, midY - 15, 80, 20);
+      ctx.fillStyle = 'white';
+      ctx.textAlign = 'center';
+      ctx.font = '14px Arial';
+      ctx.fillText(`${Math.round(pixelDistance)} px`, midX, midY);
+    }
+  };
+
+  const handleCalibrate = () => {
+    if (measurementValue && calibrationLine.start && calibrationLine.end) {
+      const pixelDistance = Math.abs(calibrationLine.end.x - calibrationLine.start.x);
+      // Calculate pixels per micron (if 40px = 10 microns, then pixels/micron = 40/10 = 4)
+      const pixelsPerMicron = pixelDistance / measurementValue;
+      
+      const calibrationData = {
+        magnification,
+        calibrationFactor: pixelsPerMicron, // pixels per micron
+        unit: 'microns',
+        timestamp: new Date().getTime(),
+        notes: `${pixelsPerMicron.toFixed(4)} pixels = 1 micron`
+      };
+
+      // Save to localStorage
+      const existingCalibrations = JSON.parse(localStorage.getItem('calibrations') || '{}');
+      existingCalibrations[magnification] = calibrationData;
+      localStorage.setItem('calibrations', JSON.stringify(existingCalibrations));
+      
+      // Update state
+      setExistingCalibrations(existingCalibrations);
+      setRealScale({ 
+        x: pixelsPerMicron,
+        y: pixelsPerMicron 
+      });
+
+      // Save as current calibration
+      localStorage.setItem('currentCalibration', JSON.stringify(calibrationData));
+    }
+  };
+
   return (
-    <div className="max-w-6xl mx-auto p-8 bg-white rounded-xl shadow-2xl">
-      {/* Header Section */}
-      <div className="mb-8 border-b pb-4">
-        <h2 className="text-3xl font-bold text-gray-800 mb-2">Camera Calibration</h2>
-        <p className="text-gray-600">Calibrate your microscope camera for precise measurements</p>
-      </div>
-
-      {/* Main Control Panel */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {/* Image Upload Section */}
-        <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">1. Upload Image</h3>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="block w-full text-sm text-gray-500
-              file:mr-4 file:py-3 file:px-4
-              file:rounded-lg file:border-0
-              file:text-sm file:font-semibold
-              file:bg-blue-50 file:text-blue-700
-              hover:file:bg-blue-100
-              transition-all duration-200"
-          />
+    <div className="h-screen flex flex-col p-4 bg-gray-50">
+      {/* Header - Enhanced */}
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-gray-800">Camera Calibration</h2>
+            {selectedExistingCalibration && (
+              <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                Calibrated
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-gray-600 mt-1">
+            {selectedExistingCalibration ? 
+              `Using ${selectedExistingCalibration.magnification} calibration (${selectedExistingCalibration.calibrationFactor.toFixed(4)} px/μm)` : 
+              'Calibrate your microscope camera for precise measurements'}
+          </p>
         </div>
-
-        {/* Unit Selection Section */}
-        <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">2. Select Unit</h3>
-          <select
-            value={unit}
-            onChange={(e) => handleUnitChange(e.target.value)}
-            className="w-full px-4 py-3 border rounded-lg bg-white
-              focus:outline-none focus:ring-2 focus:ring-blue-500
-              transition-all duration-200"
+        
+        {/* Action Buttons - Redesigned */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleMeasurementSubmit}
+            disabled={!calibrationLine.start || !measurementValue || !canDrawLine}
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
+              bg-blue-500 text-white hover:bg-blue-600 
+              disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
           >
-            <option value="microns">Microns (μm)</option>
-            <option value="mm">Millimeters (mm)</option>
-            <option value="cm">Centimeters (cm)</option>
-          </select>
-        </div>
-
-        {/* Measurement Input Section */}
-        <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">3. Enter Measurement</h3>
-          <div className="flex space-x-2">
-            <input
-              type="number"
-              value={measurementValue}
-              onChange={(e) => setMeasurementValue(e.target.value)}
-              placeholder={`Value in ${unit}`}
-              className="flex-1 px-4 py-3 border rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-blue-500
-                disabled:bg-gray-100 disabled:cursor-not-allowed
-                transition-all duration-200"
-              disabled={!calibrationLine.start || !canDrawLine || lines.length > 0}
-            />
-            <span className="inline-flex items-center px-3 py-3 text-gray-600 bg-gray-100 rounded-lg">
-              {unit}
-            </span>
+            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            Calibrate
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={saveImage}
+              disabled={!image}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
+                bg-green-500 text-white hover:bg-green-600 
+                disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+              </svg>
+              Save
+            </button>
+            <button
+              onClick={handleSaveCalibration}
+              disabled={!realScale.x}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
+                bg-purple-500 text-white hover:bg-purple-600 
+                disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
+            >
+              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+              Save Cal.
+            </button>
+            <button
+              onClick={resetCalibration}
+              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
+                text-red-600 bg-red-50 hover:bg-red-100 transition-all duration-200"
+            >
+              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Reset
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex flex-wrap gap-4 mb-8">
-        <button
-          onClick={handleMeasurementSubmit}
-          disabled={!calibrationLine.start || !measurementValue || !canDrawLine || lines.length > 0}
-          className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium
-            transition-all duration-200 ${
-            !calibrationLine.start || !measurementValue || !canDrawLine || lines.length > 0
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl'
-          }`}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-          </svg>
-          <span>Calibrate</span>
-        </button>
+      {/* Main Content Area - Enhanced */}
+      <div className="flex-1 flex gap-4 min-h-0">
+        {/* Left Panel - Controls */}
+        <div className="w-72 flex flex-col gap-3">
+          {/* Calibration Type Selection - Enhanced */}
+          {!calibrationType && (
+            <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Calibration Type</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setCalibrationType('new')}
+                  className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-blue-200
+                    bg-blue-50 hover:bg-blue-100 transition-all duration-200"
+                >
+                  <svg className="w-6 h-6 text-blue-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  <span className="text-sm font-medium text-blue-700">New</span>
+                  <span className="text-xs text-blue-600 mt-1">Create calibration</span>
+                </button>
+                <button
+                  onClick={() => setCalibrationType('existing')}
+                  className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-gray-200
+                    bg-gray-50 hover:bg-gray-100 transition-all duration-200"
+                >
+                  <svg className="w-6 h-6 text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-700">Existing</span>
+                  <span className="text-xs text-gray-600 mt-1">Use saved calibration</span>
+                </button>
+              </div>
+            </div>
+          )}
 
-        <button
-          onClick={resetCalibration}
-          disabled={!lines.length && !calibrationLine.start}
-          className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium
-            transition-all duration-200 ${
-            !lines.length && !calibrationLine.start
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-yellow-500 text-white hover:bg-yellow-600 shadow-lg hover:shadow-xl'
-          }`}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          <span>New Calibration</span>
-        </button>
+          {/* Existing Calibrations List - Enhanced */}
+          {calibrationType === 'existing' && (
+            <div className="flex-1 overflow-auto bg-white rounded-lg shadow-sm border border-gray-200">
+              <div className="p-4 border-b border-gray-100">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-semibold text-gray-700">Existing Calibrations</h3>
+                  <button
+                    onClick={() => setCalibrationType(null)}
+                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 
+                      bg-gray-100 rounded hover:bg-gray-200 transition-all duration-200"
+                  >
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back
+                  </button>
+                </div>
+              </div>
+              <div className="p-3 space-y-2">
+                {Object.entries(existingCalibrations).map(([mag, calibration]) => (
+                  <div key={mag} 
+                    className={`p-3 rounded-lg border transition-all duration-200 ${
+                      selectedExistingCalibration?.magnification === mag
+                        ? 'bg-blue-50 border-blue-200'
+                        : 'bg-white border-gray-200 hover:border-blue-200'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-800">{mag}</h4>
+                        <div className="mt-1 space-y-0.5">
+                          <p className="text-xs text-gray-600">
+                            Scale: {calibration.calibrationFactor.toFixed(4)} px/μm
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(calibration.timestamp).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleUseCalibration(calibration)}
+                        className={`px-2 py-1 text-xs font-medium rounded-md transition-all duration-200 ${
+                          selectedExistingCalibration?.magnification === mag
+                            ? 'bg-blue-200 text-blue-800'
+                            : 'bg-blue-500 text-white hover:bg-blue-600'
+                        }`}
+                      >
+                        {selectedExistingCalibration?.magnification === mag ? 'In Use' : 'Use'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-        <button
-          onClick={saveImage}
-          disabled={!lines.length}
-          className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium
-            transition-all duration-200 ${
-            !lines.length
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-green-600 text-white hover:bg-green-700 shadow-lg hover:shadow-xl'
-          }`}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          <span>Save Image</span>
-        </button>
-      </div>
+          {/* New Calibration Controls - Enhanced */}
+          {calibrationType === 'new' && (
+            <div className="space-y-3">
+              {/* Magnification Selection */}
+              <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Magnification</h3>
+                <select
+                  value={magnification}
+                  onChange={(e) => setMagnification(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="50x">50x Magnification</option>
+                  <option value="100x">100x Magnification</option>
+                  <option value="200x">200x Magnification</option>
+                  <option value="500x">500x Magnification</option>
+                  <option value="1000x">1000x Magnification</option>
+                </select>
+              </div>
 
-      {/* Canvas Section */}
-      <div className="relative mb-8">
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-          <div className="relative border-2 border-gray-200 rounded-lg overflow-hidden">
+              {/* Unit Selection */}
+              <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Measurement Unit</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: 'microns', label: 'Microns (μm)', icon: 'μm' },
+                    { value: 'mm', label: 'Millimeters', icon: 'mm' },
+                    { value: 'cm', label: 'Centimeters', icon: 'cm' }
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => handleUnitChange(option.value)}
+                      className={`p-2 rounded-lg border-2 transition-all duration-200 ${
+                        unit === option.value
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-blue-200'
+                      }`}
+                    >
+                      <span className="text-lg font-medium">{option.icon}</span>
+                      <p className="text-xs mt-1">{option.label}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Measurement Input */}
+              <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Measurement Value</h3>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      value={measurementValue}
+                      onChange={(e) => setMeasurementValue(e.target.value)}
+                      placeholder={`Enter value`}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md
+                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <span className="text-sm text-gray-500">{unit}</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Draw a line on the image, then enter its known measurement
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Calibration Info - Enhanced */}
+          {realScale.x > 0 && (
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">Current Calibration</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-blue-800">Scale Factor:</span>
+                  <span className="text-sm font-medium text-blue-900">
+                    {realScale.x.toFixed(4)} px/{unit}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-blue-800">Resolution:</span>
+                  <span className="text-sm font-medium text-blue-900">
+                    {(1/realScale.x).toFixed(4)} {unit}/px
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-blue-800">Status:</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    ✓ Calibrated
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Panel - Canvas and Results */}
+        <div className="flex-1 flex flex-col gap-3 min-w-0">
+          {/* Canvas Area - Enhanced */}
+          <div className="flex-1 relative bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <canvas
               ref={canvasRef}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              className={`max-w-full h-auto ${
-                canDrawLine ? 'cursor-crosshair' : 'cursor-default'
-              }`}
+              className={`w-full h-full ${canDrawLine ? 'cursor-crosshair' : 'cursor-default'}`}
             />
             
             {/* Status Badge */}
             {image && (
-              <div className="absolute top-4 right-4">
-                {canDrawLine ? (
-                  <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800 shadow-sm">
-                    {calibrationLine.start ? '✏️ Enter Measurement' : '✏️ Ready to Draw'}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-green-100 text-green-800 shadow-sm">
-                    ✓ Calibrated
-                  </span>
-                )}
+              <div className="absolute top-3 right-3">
+                <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium
+                  ${canDrawLine 
+                    ? 'bg-blue-100 text-blue-800'
+                    : 'bg-green-100 text-green-800'}`}
+                >
+                  {canDrawLine 
+                    ? (calibrationLine.start ? '✏️ Enter Measurement' : '✏️ Draw Line')
+                    : '✓ Calibrated'}
+                </span>
               </div>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Info Panels */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Measurements Panel */}
-        {lines.length > 0 && (
-          <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700">Calibration Results</h3>
-            <ul className="space-y-3">
-              {lines.map((line, index) => (
-                <li key={index} className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm">
-                  <span className="text-gray-700">Measurement {index + 1}:</span>
-                  <span className="font-medium text-gray-900">
-                    {line.measurement.toFixed(2)} {line.unit}
-                    <span className="ml-2 text-gray-500 text-sm">
-                      ({Math.round(line.pixelDistance)} px)
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+          {/* Results Panel - Enhanced */}
+          {(lines.length > 0 || image) && (
+            <div className="h-36 flex gap-3">
+              {/* Measurements */}
+              {lines.length > 0 && (
+                <div className="flex-1 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Measurements</h3>
+                  <div className="space-y-2">
+                    {lines.map((line, index) => (
+                      <div key={index} className="flex justify-between items-center py-1 border-b border-gray-100">
+                        <span className="text-sm text-gray-600">Measurement {index + 1}:</span>
+                        <div className="text-right">
+                          <span className="text-sm font-medium text-gray-900">
+                            {line.measurement.toFixed(2)} {line.unit}
+                          </span>
+                          <span className="ml-2 text-xs text-gray-500">
+                            ({Math.round(line.pixelDistance)} px)
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-        {/* Image Information Panel */}
-        {image && (
-          <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700">Image Details</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between p-3 bg-white rounded-lg shadow-sm">
-                <span className="text-gray-700">Original Size:</span>
-                <span className="font-medium text-gray-900">
-                  {originalDimensions.width} × {originalDimensions.height} px
-                </span>
-              </div>
-              {realScale.x && (
-                <>
-                  <div className="flex justify-between p-3 bg-white rounded-lg shadow-sm">
-                    <span className="text-gray-700">Calibrated Width:</span>
-                    <span className="font-medium text-gray-900">
-                      {(originalDimensions.width / realScale.x).toFixed(2)} {unit}
-                    </span>
+              {/* Image Details */}
+              {image && (
+                <div className="flex-1 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Image Details</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center py-1 border-b border-gray-100">
+                      <span className="text-sm text-gray-600">Resolution:</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {originalDimensions.width} × {originalDimensions.height} px
+                      </span>
+                    </div>
+                    {realScale.x && (
+                      <>
+                        <div className="flex justify-between">
+                          <span>Width:</span>
+                          <span>{(originalDimensions.width / realScale.x).toFixed(2)} {unit}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Height:</span>
+                          <span>{(originalDimensions.height / realScale.x).toFixed(2)} {unit}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="flex justify-between p-3 bg-white rounded-lg shadow-sm">
-                    <span className="text-gray-700">Calibrated Height:</span>
-                    <span className="font-medium text-gray-900">
-                      {(originalDimensions.height / realScale.x).toFixed(2)} {unit}
-                    </span>
-                  </div>
-                  <div className="flex justify-between p-3 bg-white rounded-lg shadow-sm">
-                    <span className="text-gray-700">Scale:</span>
-                    <span className="font-medium text-gray-900">
-                      1 {unit} = {realScale.x.toFixed(2)} pixels
-                    </span>
-                  </div>
-                </>
+                </div>
               )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-
-      {/* Instructions Panel */}
-      <div className="mt-8 bg-blue-50 p-6 rounded-xl border border-blue-100">
-        <h3 className="text-lg font-semibold mb-4 text-blue-900">Quick Guide</h3>
-        <ol className="space-y-3">
-          {[
-            "Upload your microscope image",
-            "Select your preferred measurement unit",
-            "Draw a calibration line by clicking and dragging",
-            "Enter the known measurement value",
-            "The axes will update to show calibrated measurements",
-            "Use 'New Calibration' to start over if needed",
-            "Save your calibrated image"
-          ].map((step, index) => (
-            <li key={index} className="flex items-start space-x-3">
-              <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-200 text-blue-800 font-medium">
-                {index + 1}
-              </span>
-              <span className="text-blue-800">{step}</span>
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      <CalibrationInfo realScale={realScale} unit={unit} />
     </div>
   );
 };

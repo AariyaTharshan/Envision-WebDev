@@ -1,4 +1,4 @@
-flask==2.0.1
-flask-cors==3.0.10
-opencv-python==4.5.3.56
-pillow==8.3.2
+flask>=2.0.1
+flask-cors>=3.0.10
+opencv-python>=4.5.3.56
+pillow>=8.3.2

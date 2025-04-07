@@ -4,12 +4,26 @@ const { spawn } = require('child_process');
 let pythonProcess = null;
 
 function startFlaskServer() {
-    // Path to your Python executable and script
-    const pythonPath = 'python'; // or 'python3' depending on your system
-    const scriptPath = path.join(__dirname, '..', 'backend', 'camera_server.py');
+    const isDev = process.env.NODE_ENV === 'development';
 
-    // Start Flask server
-    pythonProcess = spawn(pythonPath, [scriptPath]);
+    let scriptPath;
+    let pythonExecutable;
+
+    if (isDev) {
+
+        pythonExecutable = 'python'; // or 'python3'
+        scriptPath = path.join(__dirname, '..', 'backend', 'camera_server.py');
+    } else {
+        // In production, run the EXE directly
+        scriptPath = path.join(process.resourcesPath, 'backend','dist', 'camera_server.exe');
+        pythonExecutable = scriptPath;
+    }
+
+    console.log('Starting Flask server from:', scriptPath);
+
+    pythonProcess = isDev 
+        ? spawn(pythonExecutable, [scriptPath]) 
+        : spawn(pythonExecutable);
 
     pythonProcess.stdout.on('data', (data) => {
         console.log(`Flask server: ${data}`);
@@ -19,11 +33,13 @@ function startFlaskServer() {
         console.error(`Flask server error: ${data}`);
     });
 
-    // Wait for Flask to start
-    return new Promise((resolve) => {
-        setTimeout(resolve, 2000); // Give Flask 2 seconds to start
+    pythonProcess.on('error', (error) => {
+        console.error('Failed to start Flask server:', error);
     });
+
+    return new Promise((resolve) => setTimeout(resolve, 2000));
 }
+
 
 async function createMainWindow() {
     // Start Flask server before creating window
@@ -38,6 +54,11 @@ async function createMainWindow() {
             preload: path.join(__dirname, 'preload.js')
         },
         autoHideMenuBar: true,
+    });
+
+    // Set zoom level to 80% (0.8)
+    mainWindow.webContents.on('did-finish-load', () => {
+        mainWindow.webContents.setZoomFactor(0.85);
     });
 
     // Load the production build
@@ -73,7 +94,7 @@ app.on('before-quit', () => {
     }
 });
 
-// Handle folder picker dialog
+// Add IPC handler for folder picker
 ipcMain.handle('dialog:openFolder', async () => {
     const result = await dialog.showOpenDialog({
         properties: ['openDirectory']

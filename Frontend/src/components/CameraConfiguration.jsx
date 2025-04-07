@@ -18,14 +18,42 @@ const CameraConfiguration = () => {
     '1280x720',
     '1920x1080',
     '2560x1440',
-    '3840x2160'
+    '3072x2048'
   ];
+
+  // Load saved settings when component mounts
+  useEffect(() => {
+    const savedSettings = localStorage.getItem('cameraSettings');
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings);
+        setSelectedCamera(settings.camera || '');
+        setResolution(settings.resolution || '1920x1080');
+        
+        // Update dimensions based on saved resolution
+        const [width, height] = settings.resolution.split('x').map(Number);
+        setDimensions({ width, height });
+        
+        console.log('Loaded saved settings:', settings);
+      } catch (error) {
+        console.error('Error loading saved settings:', error);
+      }
+    }
+  }, []);
 
   // Update dimensions when resolution changes
   useEffect(() => {
     const [width, height] = resolution.split('x').map(Number);
     setDimensions({ width, height });
   }, [resolution]);
+
+  // Add this useEffect after your other useEffects
+  useEffect(() => {
+    if (selectedCamera === 'HIKERBOT') {
+        // Update camera resolution when HIKERBOT is selected
+        handleResolutionChange(resolution);
+    }
+  }, [selectedCamera]); // Only run when camera selection changes
 
   const handleSave = async () => {
     if (!selectedCamera) {
@@ -53,6 +81,59 @@ const CameraConfiguration = () => {
     }
   };
 
+  const handleResolutionChange = async (newResolution) => {
+    try {
+        if (selectedCamera === 'HIKERBOT') {
+            const response = await fetch('http://localhost:5000/api/set-camera-resolution', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    resolution: newResolution
+                }),
+            });
+            
+            const data = await response.json();
+            if (data.status === 'success') {
+                setResolution(newResolution);
+                const [width, height] = newResolution.split('x').map(Number);
+                setDimensions({ width, height });
+                
+                // Save to localStorage and trigger storage event
+                const settings = {
+                    camera: selectedCamera,
+                    resolution: newResolution,
+                    timestamp: new Date().toISOString()
+                };
+                localStorage.setItem('cameraSettings', JSON.stringify(settings));
+                
+                // Dispatch storage event for other components
+                window.dispatchEvent(new Event('storage'));
+            }
+        } else {
+            setResolution(newResolution);
+            const [width, height] = newResolution.split('x').map(Number);
+            setDimensions({ width, height });
+            
+            // Save to localStorage and trigger storage event
+            const settings = {
+                camera: selectedCamera,
+                resolution: newResolution,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('cameraSettings', JSON.stringify(settings));
+            
+            // Dispatch storage event for other components
+            window.dispatchEvent(new Event('storage'));
+        }
+    } catch (error) {
+        console.error('Error updating resolution:', error);
+        setSaveStatus('Error updating resolution');
+        setTimeout(() => setSaveStatus(''), 3000);
+    }
+  };
+
   return (
     <div className="w-80 p-4">
       {/* Header */}
@@ -70,7 +151,7 @@ const CameraConfiguration = () => {
             d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" 
           />
         </svg>
-        <h2 className="text-lg font-semibold text-gray-800">Camera Setup</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Camera Configuration</h2>
       </div>
 
       <div className="space-y-4">
@@ -100,7 +181,7 @@ const CameraConfiguration = () => {
           </label>
           <select
             value={resolution}
-            onChange={(e) => setResolution(e.target.value)}
+            onChange={(e) => handleResolutionChange(e.target.value)}
             className="w-full px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm 
               focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500
               bg-white text-sm"

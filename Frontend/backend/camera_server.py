@@ -1,17 +1,39 @@
+import os
+import sys
+import logging
+
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    filename="logs/camera_server.log",
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+sys.stdout = open("logs/stdout.log", "w")
+sys.stderr = open("logs/stderr.log", "w")
+
 from flask import Flask, Response, jsonify, request, send_file
 from flask_cors import CORS
 import cv2
 import time
 import threading
-import os
 from pathlib import Path
-from datetime import datetime
-from werkzeug.utils import secure_filename
+from datetime import *
 from PIL import Image
 import numpy as np
+import json
+from porosity_analysis import analyze_porosity, prepare_image
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'MvImport')))
+from MvCameraControl_class import *
+from ctypes import c_float, byref
+import atexit
+
+
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000", "http://localhost:5173"], "methods": ["GET", "POST", "OPTIONS"], "headers": ["Content-Type"]}})
+
+# Global observer for file system events
+observer = None
 
 class WebcamManager:
     def __init__(self):
@@ -20,24 +42,143 @@ class WebcamManager:
         self.frame = None
         self.thread = None
         self.last_frame = None
+        self.user_save_path = None  # Add user-defined save path
         self.default_save_path = 'C:\\Users\\Public\\MicroScope_Images'
+        self.temp_dir = None  # Will be set when save path is set
+        self.current_camera_type = None
+        self.hikrobot_camera = None  # For HIKROBOT camera instance
+        self.current_resolution = None
+        self.current_zoom = 1.0  # Add default zoom level
+        
+        # Initialize with default path
+        self.set_save_path(self.default_save_path)
 
-    def start_camera(self):
+    def set_save_path(self, path=None):
+        """Set save path and create necessary directories"""
+        try:
+            if path:
+                self.user_save_path = path
+            else:
+                self.user_save_path = self.default_save_path
+                
+            # Create main directory
+            os.makedirs(self.user_save_path, exist_ok=True)
+            
+            # Update temp directory path
+            self.temp_dir = os.path.join(self.user_save_path, 'temp')
+            os.makedirs(self.temp_dir, exist_ok=True)
+            
+            return True
+        except Exception as e:
+            print(f"Error setting save path: {str(e)}")
+            return False
+
+    def get_current_save_path(self):
+        """Get current save path"""
+        return self.user_save_path or self.default_save_path
+
+    def get_temp_path(self, original_path, suffix):
+        """Generate a path in temp directory maintaining original filename"""
+        filename = os.path.basename(original_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_{suffix}{ext}"
+        return os.path.join(self.temp_dir, new_filename)
+
+    def clear_temp_directory(self):
+        """Clear all files in temp directory"""
+        try:
+            for file in os.listdir(self.temp_dir):
+                file_path = os.path.join(self.temp_dir, file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {str(e)}")
+        except Exception as e:
+            print(f"Error clearing temp directory: {str(e)}")
+
+    def save_to_main_directory(self, temp_path):
+        """Save temp file to main directory and clear temp"""
+        try:
+            if not temp_path or not os.path.exists(temp_path):
+                return None
+                
+            filename = os.path.basename(temp_path)
+            new_path = os.path.join(self.get_current_save_path(), filename)
+            
+            img = cv2.imread(temp_path)
+            cv2.imwrite(new_path, img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+            
+            # Clear temp directory after successful save
+            self.clear_temp_directory()
+            
+            return new_path
+            
+        except Exception as e:
+            print(f"Error saving to main directory: {str(e)}")
+            return None
+
+    def start_camera(self, camera_type=None):
         try:
             if self.camera is not None:
                 self.stop_camera()
 
-            self.camera = cv2.VideoCapture(0)
-            
-            if not self.camera.isOpened():
-                print("Failed to open webcam")
-                return False
-            
-            # Get the native resolution
-            native_width = self.camera.get(cv2.CAP_PROP_FRAME_WIDTH)
-            native_height = self.camera.get(cv2.CAP_PROP_FRAME_HEIGHT)
-            print(f"Camera native resolution: {native_width}x{native_height}")
-            
+            print(f"Starting camera with type: {camera_type}")
+
+            if camera_type == "HIKERBOT":
+                # Initialize HIKROBOT camera
+                self.hikrobot_camera = MvCamera()
+                
+                # Initialize SDK
+                ret = self.hikrobot_camera.MV_CC_Initialize()
+                if ret != 0:
+                    print("Initialize SDK fail!")
+                    return False
+
+                # Enumerate devices
+                deviceList = MV_CC_DEVICE_INFO_LIST()
+                ret = self.hikrobot_camera.MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, deviceList)
+                if ret != 0:
+                    print("Enum Devices fail!")
+                    return False
+
+                if deviceList.nDeviceNum == 0:
+                    print("No HIKROBOT camera found!")
+                    return False
+
+                # Select first available device
+                stDeviceList = cast(deviceList.pDeviceInfo[0], POINTER(MV_CC_DEVICE_INFO)).contents
+
+                # Create handle
+                ret = self.hikrobot_camera.MV_CC_CreateHandle(stDeviceList)
+                if ret != 0:
+                    print("Create Handle fail!")
+                    return False
+
+                # Open device
+                ret = self.hikrobot_camera.MV_CC_OpenDevice(MV_ACCESS_Exclusive, 0)
+                if ret != 0:
+                    print("Open Device fail!")
+                    return False
+
+                # Start grabbing
+                ret = self.hikrobot_camera.MV_CC_StartGrabbing()
+                if ret != 0:
+                    print("Start Grabbing fail!")
+                    return False
+
+                self.camera = self.hikrobot_camera
+                self.current_camera_type = 'HIKERBOT'
+                
+                # Set initial zoom based on current magnification
+                if hasattr(self, 'current_zoom'):
+                    self.set_digital_zoom(f"{int(self.current_zoom * 100)}x")
+            else:
+                # Default webcam (index 0)
+                print("Using default webcam")
+                self.camera = cv2.VideoCapture(0)
+                self.current_camera_type = 'WEBCAM'
+
             self.is_recording = True
             self.thread = threading.Thread(target=self.capture_frames)
             self.thread.daemon = True
@@ -45,25 +186,63 @@ class WebcamManager:
             
             return True
         except Exception as e:
-            print(f"Error starting webcam: {str(e)}")
+            print(f"Error starting camera: {str(e)}")
             return False
 
     def capture_frames(self):
         while self.is_recording:
             try:
-                if self.camera is None or not self.camera.isOpened():
-                    print("Webcam is not opened")
-                    break
+                if self.current_camera_type == 'HIKERBOT':
+                    stOutFrame = MV_FRAME_OUT()
+                    ret = self.camera.MV_CC_GetImageBuffer(stOutFrame, 1000)
+                    if ret == 0:
+                        # Get original dimensions
+                        original_width = stOutFrame.stFrameInfo.nWidth
+                        original_height = stOutFrame.stFrameInfo.nHeight
 
-                success, frame = self.camera.read()
-                if success:
-                    # No resizing, use native resolution
-                    frame = cv2.flip(frame, 1)
-                    _, buffer = cv2.imencode('.jpg', frame)
-                    self.frame = buffer.tobytes()
-                    self.last_frame = self.frame
+                        # Get current display resolution
+                        display_width, display_height = self.current_resolution if self.current_resolution else (original_width, original_height)
+
+                        pData = (c_ubyte * stOutFrame.stFrameInfo.nFrameLen)()
+                        cdll.msvcrt.memcpy(byref(pData), stOutFrame.pBufAddr, stOutFrame.stFrameInfo.nFrameLen)
+                        data = np.frombuffer(pData, count=int(stOutFrame.stFrameInfo.nFrameLen), dtype=np.uint8)
+                        frame = data.reshape((original_height, original_width, -1))
+                        
+                        # Resize frame to display resolution while maintaining aspect ratio
+                        if self.current_resolution:
+                            aspect_ratio = original_width / original_height
+                            target_aspect = display_width / display_height
+                            
+                            if aspect_ratio > target_aspect:
+                                # Width limited by display width
+                                new_width = display_width
+                                new_height = int(display_width / aspect_ratio)
+                            else:
+                                # Height limited by display height
+                                new_height = display_height
+                                new_width = int(display_height * aspect_ratio)
+                                
+                            frame = cv2.resize(frame, (new_width, new_height))
+                        
+                        # Release buffer
+                        self.camera.MV_CC_FreeImageBuffer(stOutFrame)
+                        
+                        # Convert to JPEG
+                        _, buffer = cv2.imencode('.jpg', frame)
+                        self.frame = buffer.tobytes()
+                        self.last_frame = self.frame
                 else:
-                    print("Failed to read frame")
+                    # Regular webcam capture
+                    if self.camera is None or not self.camera.isOpened():
+                        break
+
+                    success, frame = self.camera.read()
+                    if success:
+                        frame = cv2.flip(frame, 1)
+                        _, buffer = cv2.imencode('.jpg', frame)
+                        self.frame = buffer.tobytes()
+                        self.last_frame = self.frame
+
                 time.sleep(0.033)
             except Exception as e:
                 print(f"Error capturing frame: {str(e)}")
@@ -72,22 +251,29 @@ class WebcamManager:
         self.is_recording = False
 
     def stop_camera(self):
-        was_recording = self.is_recording
         self.is_recording = False
-        if self.thread and was_recording:
+        if self.thread:
             self.thread.join(timeout=1.0)
-        if self.camera:
-            self.camera.release()
+        
+        if self.current_camera_type == 'HIKERBOT':
+            if self.camera:
+                self.camera.MV_CC_StopGrabbing()
+                self.camera.MV_CC_CloseDevice()
+                self.camera.MV_CC_DestroyHandle()
+        else:
+            if self.camera:
+                self.camera.release()
+        
         self.camera = None
         self.frame = None
-        # Don't clear last_frame as we might need it for snapshot
+        self.current_camera_type = None
 
     def take_snapshot(self, save_path=None):
         if self.last_frame:
             try:
                 # Use provided save path or default
                 if not save_path:
-                    save_path = self.default_save_path
+                    save_path = self.get_current_save_path()
                 
                 # Create directory if it doesn't exist
                 os.makedirs(save_path, exist_ok=True)
@@ -106,14 +292,108 @@ class WebcamManager:
                 return None
         return None
 
+    def set_resolution(self, width, height):
+        if self.current_camera_type == 'HIKERBOT' and self.camera:
+            try:
+                # Store the desired display resolution
+                self.current_resolution = (width, height)
+                
+                # Get the current sensor resolution
+                nWidth = c_uint()
+                nHeight = c_uint()
+                ret = self.camera.MV_CC_GetIntValue("Width", nWidth)
+                if ret != 0:
+                    print("Failed to get width")
+                    return False
+                    
+                ret = self.camera.MV_CC_GetIntValue("Height", nHeight)
+                if ret != 0:
+                    print("Failed to get height")
+                    return False
+                    
+                original_width = nWidth.value
+                original_height = nHeight.value
+                
+                # Calculate scaling factors
+                scale_x = width / original_width
+                scale_y = height / original_height
+                
+                # Use the smaller scaling factor to maintain aspect ratio
+                scale = min(scale_x, scale_y)
+                
+                # Calculate new dimensions that maintain aspect ratio
+                display_width = int(original_width * scale)
+                display_height = int(original_height * scale)
+                
+                # Update current resolution with the actual display dimensions
+                self.current_resolution = (display_width, display_height)
+                
+                return True
+                
+            except Exception as e:
+                print(f"Error setting resolution: {str(e)}")
+                return False
+        return False
+
+    def set_digital_zoom(self, magnification):
+        """Set digital zoom based on magnification value"""
+        try:
+            if self.current_camera_type != 'HIKERBOT' or not self.hikrobot_camera:
+                print("Digital zoom only available for HIKROBOT cameras")
+                return False
+                
+            # Convert magnification (e.g., '100x') to zoom factor
+            try:
+                # Remove 'x' and convert to float
+                zoom_factor = float(magnification.replace('x', ''))
+                # Convert to proper zoom factor (e.g., 100x = 1.0, 200x = 2.0, 50x = 0.5)
+                normalized_zoom = zoom_factor / 100.0
+                print(f"Setting zoom factor to: {normalized_zoom} from magnification {magnification}")
+            except ValueError as e:
+                print(f"Invalid magnification format: {magnification}")
+                return False
+
+            # Set digital zoom
+            ret = self.hikrobot_camera.MV_CC_SetDigitalZoom(c_float(normalized_zoom))
+            if ret == 0:
+                self.current_zoom = normalized_zoom
+                print(f"Successfully set digital zoom to {normalized_zoom}x")
+                return True
+            else:
+                print(f"Failed to set digital zoom (error code: {ret})")
+                return False
+                
+        except Exception as e:
+            print(f"Error setting digital zoom: {str(e)}")
+            return False
+            
+    def get_digital_zoom(self):
+        """Get current digital zoom factor"""
+        try:
+            if self.current_camera_type != 'HIKERBOT' or not self.hikrobot_camera:
+                return None
+                
+            zoom_factor = c_float()
+            ret = self.hikrobot_camera.MV_CC_GetDigitalZoom(byref(zoom_factor))
+            if ret == 0:
+                return zoom_factor.value
+            return None
+        except Exception as e:
+            print(f"Error getting zoom: {str(e)}")
+            return None
+
 webcam = WebcamManager()
 
 @app.route('/api/start-camera', methods=['POST'])
 def start_camera():
     try:
-        if webcam.start_camera():
+        data = request.get_json()
+        camera_type = data.get('cameraType')
+        print(f"Starting camera with type: {camera_type}")  # Debug log
+        
+        if webcam.start_camera(camera_type):
             return jsonify({'status': 'success'})
-        return jsonify({'status': 'error', 'message': 'Failed to start webcam'})
+        return jsonify({'status': 'error', 'message': 'Failed to start camera'})
     except Exception as e:
         print(f"Error in start_camera route: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)})
@@ -158,7 +438,7 @@ def take_snapshot():
         return jsonify({
             'status': 'error',
             'message': str(e)
-        })
+        }), 500
 
 @app.route('/api/get-image')
 def get_image():
@@ -200,7 +480,7 @@ def import_image():
         if file:
             try:
                 filename = secure_filename(file.filename)
-                save_dir = webcam.default_save_path  # Use WebcamManager's default path
+                save_dir = webcam.get_current_save_path()  # Use WebcamManager's default path
                 print(f"Using save directory: {save_dir}")
                 
                 os.makedirs(save_dir, exist_ok=True)
@@ -259,23 +539,16 @@ def import_image():
 @app.route('/api/rotate-image', methods=['POST'])
 def rotate_image():
     try:
-        print("Rotation endpoint called")
         data = request.get_json()
-        print("Received data:", data)
-        
         image_path = data.get('imagePath')
         direction = data.get('direction', 'clockwise')
         
-        print(f"Processing rotation: {direction} for image: {image_path}")
-        
         if not image_path or not os.path.exists(image_path):
-            print(f"Image not found at path: {image_path}")
             return jsonify({
                 'status': 'error',
                 'message': 'Image not found'
             }), 404
 
-        # Read image with OpenCV
         img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
         if img is None:
             return jsonify({
@@ -283,32 +556,21 @@ def rotate_image():
                 'message': 'Failed to read image'
             }), 500
 
-        # Simple 90-degree rotation without any scaling or interpolation
         if direction == 'clockwise':
-            rotated_img = np.rot90(img, k=-1)  # -1 for clockwise
+            rotated_img = np.rot90(img, k=-1)
         else:
-            rotated_img = np.rot90(img, k=1)   # 1 for counterclockwise
+            rotated_img = np.rot90(img, k=1)
 
-        # Save with new filename
-        directory = os.path.dirname(image_path)
-        filename = os.path.basename(image_path)
-        name, ext = os.path.splitext(filename)
-        new_filename = f"{name}_rotated{ext}"
-        new_path = os.path.join(directory, new_filename)
+        # Save to temp directory
+        temp_path = webcam.get_temp_path(image_path, 'rotated')
+        cv2.imwrite(temp_path, rotated_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
         
-        print(f"Saving rotated image to: {new_path}")
-        # Save with original quality
-        cv2.imwrite(new_path, rotated_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-        
-        print("Rotation completed successfully")
         return jsonify({
             'status': 'success',
-            'filepath': new_path
+            'filepath': temp_path
         })
         
     except Exception as e:
-        print(f"Error during rotation: {str(e)}")
-        print(f"Error type: {type(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e)
@@ -371,6 +633,1101 @@ def flip_image():
             'status': 'error',
             'message': str(e)
         }), 500
+
+@app.route('/api/set-camera-resolution', methods=['POST'])
+def set_camera_resolution():
+    try:
+        data = request.get_json()
+        resolution = data.get('resolution')  # This will be like "1920x1080"
+        
+        if not resolution or 'x' not in resolution:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid resolution format'
+            }), 400
+
+        width, height = map(int, resolution.split('x'))
+        
+        if webcam.set_resolution(width, height):
+            return jsonify({'status': 'success'})
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Camera not initialized or not HIKERBOT'
+            }), 400
+    except Exception as e:
+        print(f"Error setting camera resolution: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/lowpass-filter', methods=['POST'])
+def apply_lowpass_filter():
+    try:
+        print("Low pass filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing low pass filter for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Apply Gaussian blur (low pass filter)
+        filtered_img = cv2.GaussianBlur(img, (25, 25), 0)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_lowpass{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving filtered image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, filtered_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Low pass filter completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during low pass filter: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/median-filter', methods=['POST'])
+def apply_median_filter():
+    try:
+        print("Median filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing median filter for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Apply Median blur
+        filtered_img = cv2.medianBlur(img, 15)  # kernel size 5x5
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_median{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving filtered image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, filtered_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Median filter completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during median filter: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/edge-detect', methods=['POST'])
+def apply_edge_detect():
+    try:
+        print("Edge detection filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing edge detection for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Convert to grayscale if image is color
+        if len(img.shape) == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img
+
+        # Apply Gaussian blur to reduce noise
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # Apply Canny edge detection
+        edges = cv2.Canny(blurred, 100, 200)  # Adjust thresholds as needed
+        
+        # Convert back to BGR for saving
+        edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_edges{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving edge detected image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, edges_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Edge detection completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during edge detection: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/edge-emphasis', methods=['POST'])
+def apply_edge_emphasis():
+    try:
+        print("Edge emphasis filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing edge emphasis for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Convert to float32 for processing
+        img_float = img.astype(np.float32) / 255.0
+
+        # Create sharpening kernel
+        kernel = np.array([[-1,-1,-1],
+                         [-1, 9,-1],
+                         [-1,-1,-1]], dtype=np.float32)
+
+        # Apply edge emphasis filter
+        emphasized = cv2.filter2D(img_float, -1, kernel)
+        
+        # Convert back to uint8
+        emphasized = np.clip(emphasized * 255, 0, 255).astype(np.uint8)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_emphasized{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving edge emphasized image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, emphasized, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Edge emphasis completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during edge emphasis: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/grayscale', methods=['POST'])
+def apply_grayscale():
+    try:
+        print("Grayscale filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing grayscale for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Convert to grayscale
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Convert back to BGR for saving
+        gray_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_gray{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving grayscale image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, gray_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Grayscale completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during grayscale: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/invert', methods=['POST'])
+def apply_invert():
+    try:
+        print("Invert filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing invert for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Invert the image
+        inverted = cv2.bitwise_not(img)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_inverted{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving inverted image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, inverted, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Invert completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during invert: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/thin', methods=['POST'])
+def apply_thin():
+    try:
+        print("Thin filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing thin for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Convert to grayscale if image is color
+        if len(img.shape) == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img
+
+        # Apply Otsu's thresholding
+        _, thresholded = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        # Apply erosion and dilation for thinning
+        kernel = np.ones((3, 3), np.uint8)
+        eroded = cv2.erode(thresholded, kernel, iterations=1)
+        dilated = cv2.dilate(eroded, kernel, iterations=1)
+
+        # Convert back to BGR for saving
+        thinned_bgr = cv2.cvtColor(dilated, cv2.COLOR_GRAY2BGR)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_thinned{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving thinned image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, thinned_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Thin completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during thin: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/image-splice', methods=['POST'])
+def apply_image_splice():
+    try:
+        print("Image splice endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_paths = data.get('imagePaths', [])  # Get array of image paths
+        direction = data.get('direction', 'horizontal')
+        
+        print(f"Processing image splice for images: {image_paths}")
+        
+        if not image_paths or len(image_paths) < 2:
+            return jsonify({
+                'status': 'error',
+                'message': 'Need at least 2 images to splice'
+            }), 400
+
+        # Read all images
+        images = []
+        for path in image_paths:
+            if not os.path.exists(path):
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Image not found: {path}'
+                }), 404
+
+            img = cv2.imread(path)
+            if img is None:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to read image: {path}'
+                }), 500
+            images.append(img)
+
+        # Get dimensions of first image
+        h1, w1 = images[0].shape[:2]
+        
+        # Resize all images to match the first image's dimensions
+        resized_images = [images[0]]
+        for img in images[1:]:
+            resized = cv2.resize(img, (w1, h1))
+            resized_images.append(resized)
+        
+        # Create a panorama by concatenating images
+        if direction == 'horizontal':
+            result = np.hstack(resized_images)
+        else:
+            result = np.vstack(resized_images)
+
+        # Save with new filename
+        directory = os.path.dirname(image_paths[0])
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        new_filename = f"spliced_{timestamp}.jpg"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving spliced image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, result, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Image splice completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during image splice: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/image-sharpen', methods=['POST'])
+def apply_image_sharpen():
+    try:
+        print("Image sharpen endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing image sharpen for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Apply sharpening filter
+        kernel = np.array([[-1,-1,-1],
+                         [-1, 9,-1],
+                         [-1,-1,-1]], dtype=np.float32)
+        sharpened = cv2.filter2D(img, -1, kernel)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_sharpened{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving sharpened image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, sharpened, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Image sharpen completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during image sharpen: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/image-stitch', methods=['POST'])
+def apply_image_stitch():
+    try:
+        print("Image stitch endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_paths = data.get('imagePaths', [])
+        
+        print(f"Processing image stitch for images: {image_paths}")
+        
+        if not image_paths or len(image_paths) < 2:
+            return jsonify({
+                'status': 'error',
+                'message': 'At least two images are required for stitching'
+            }), 400
+
+        # Read images with OpenCV
+        images = []
+        for img_path in image_paths:
+            img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+            if img is None:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to read image: {img_path}'
+                }), 500
+            images.append(img)
+
+        # Resize all images to match the first image's dimensions
+        resized_images = []
+        for img in images:
+            resized_img = cv2.resize(img, (images[0].shape[1], images[0].shape[0]))
+            resized_images.append(resized_img)
+
+        # Create a panorama by blending overlapping regions
+        stitched_img = resized_images[0]
+        for i in range(1, len(resized_images)):
+            stitched_img = cv2.addWeighted(stitched_img, 0.5, resized_images[i], 0.5, 0)
+
+        # Save with new filename
+        directory = os.path.dirname(image_paths[0])
+        filename = os.path.basename(image_paths[0])
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_stitched{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving stitched image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, stitched_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Image stitch completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during image stitch: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/save-calibration', methods=['POST'])
+def save_calibration():
+    try:
+        print("Save calibration endpoint called")
+        data = request.get_json()
+        print("Received calibration data:", data)
+        
+        calibration_data = data.get('calibrationData')
+        if not calibration_data:
+            return jsonify({
+                'status': 'error',
+                'message': 'No calibration data provided'
+            }), 400
+
+        # Create calibration directory if it doesn't exist
+        calibration_dir = os.path.join('calibration_data')
+        os.makedirs(calibration_dir, exist_ok=True)
+
+        # Save calibration data with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"calibration_{timestamp}.json"
+        filepath = os.path.join(calibration_dir, filename)
+
+        with open(filepath, 'w') as f:
+            json.dump(calibration_data, f, indent=4)
+        
+        print(f"Calibration data saved to: {filepath}")
+        return jsonify({
+            'status': 'success',
+            'message': 'Calibration data saved successfully',
+            'filepath': filepath
+        })
+        
+    except Exception as e:
+        print(f"Error saving calibration data: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/threshold', methods=['POST'])
+def apply_threshold():
+    try:
+        print("Threshold filter endpoint called")
+        data = request.get_json()
+        print("Received data:", data)
+        
+        image_path = data.get('imagePath')
+        
+        print(f"Processing threshold for image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found at path: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Read image with OpenCV
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to read image'
+            }), 500
+
+        # Convert to grayscale if image is color
+        if len(img.shape) == 3:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img
+
+        # Apply Gaussian blur to reduce noise
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # Apply Otsu's thresholding
+        _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # Convert back to BGR for saving
+        thresh_bgr = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
+
+        # Save with new filename
+        directory = os.path.dirname(image_path)
+        filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"{name}_threshold{ext}"
+        new_path = os.path.join(directory, new_filename)
+        
+        print(f"Saving thresholded image to: {new_path}")
+        # Save with original quality
+        cv2.imwrite(new_path, thresh_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        
+        print("Thresholding completed successfully")
+        return jsonify({
+            'status': 'success',
+            'filepath': new_path
+        })
+        
+    except Exception as e:
+        print(f"Error during thresholding: {str(e)}")
+        print(f"Error type: {type(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/porosity/analyze', methods=['POST'])
+def porosity_analysis():
+    try:
+        data = request.get_json()
+        image_path = data.get('imagePath')
+        unit = data.get('unit', 'microns')
+        features = data.get('features', 'dark')
+        
+        if not image_path or not os.path.exists(image_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        result = analyze_porosity(image_path, unit, features)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/porosity/prep', methods=['POST'])
+def porosity_prep():
+    try:
+        data = request.get_json()
+        image_path = data.get('imagePath')
+        prep_option = data.get('prepOption')
+        
+        if not image_path or not os.path.exists(image_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        result = prepare_image(image_path, prep_option)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/save-to-main', methods=['POST'])
+def save_to_main():
+    try:
+        data = request.get_json()
+        temp_path = data.get('imagePath')
+        
+        if not temp_path:
+            return jsonify({
+                'status': 'error',
+                'message': 'No image path provided'
+            }), 400
+
+        saved_path = webcam.save_to_main_directory(temp_path)
+        if saved_path:
+            return jsonify({
+                'status': 'success',
+                'filepath': saved_path,
+                'message': 'Image saved and temp files cleared'
+            })
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to save image'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/set-save-path', methods=['POST'])
+def set_save_path():
+    try:
+        data = request.get_json()
+        new_path = data.get('path')
+        
+        if new_path:
+            webcam.user_save_path = new_path
+            # Create main directory
+            os.makedirs(new_path, exist_ok=True)
+            # Update temp directory
+            webcam.temp_dir = os.path.join(new_path, 'temp')
+            os.makedirs(webcam.temp_dir, exist_ok=True)
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Save path updated successfully',
+                'path': new_path
+            })
+        return jsonify({
+            'status': 'error',
+            'message': 'No path provided'
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/set-zoom', methods=['POST'])
+def set_zoom():
+    try:
+        data = request.get_json()
+        magnification = data.get('magnification', '100x')  # Default to 100x if not specified
+        
+        success = webcam.set_digital_zoom(magnification)
+        
+        if success:
+            return jsonify({
+                'status': 'success',
+                'message': f'Zoom set to {magnification}',
+                'zoom_factor': webcam.current_zoom
+            })
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to set zoom'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/get-zoom', methods=['GET'])
+def get_zoom():
+    try:
+        zoom_factor = webcam.get_digital_zoom()
+        if zoom_factor is not None:
+            return jsonify({
+                'status': 'success',
+                'zoom_factor': zoom_factor
+            })
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to get zoom'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/get-calibrations', methods=['GET'])
+def get_calibrations():
+    try:
+        calibration_dir = os.path.join('calibration_data')
+        if not os.path.exists(calibration_dir):
+            return jsonify({
+                'status': 'success',
+                'calibrations': {}
+            })
+
+        calibrations = {}
+        for filename in os.listdir(calibration_dir):
+            if filename.endswith('.json'):
+                filepath = os.path.join(calibration_dir, filename)
+                with open(filepath, 'r') as f:
+                    data = json.load(f)
+                    # Keep only the most recent calibration for each magnification
+                    mag = data.get('magnification', '100x')  # Default to 100x if not specified
+                    if mag not in calibrations or data['timestamp'] > calibrations[mag]['timestamp']:
+                        calibrations[mag] = data
+
+        return jsonify({
+            'status': 'success',
+            'calibrations': calibrations
+        })
+
+    except Exception as e:
+        print(f"Error getting calibrations: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+def is_valid_image(file_path):
+    """Verify if a file is a valid image using OpenCV"""
+    try:
+        img = cv2.imread(file_path)
+        return img is not None
+    except Exception:
+        return False
+
+@app.route('/api/list-images', methods=['POST'])
+def list_images():
+    try:
+        data = request.get_json()
+        directory = data.get('path')
+        filters = data.get('filters', {})
+        allowed_extensions = filters.get('extensions', ['.jpg', '.jpeg', '.png', '.bmp', '.tiff'])
+        
+        print(f"Listing images from directory: {directory}")
+        
+        if not directory or not os.path.exists(directory):
+            print(f"Directory not found: {directory}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Directory not found'
+            }), 404
+
+        images = []
+        for filename in os.listdir(directory):
+            file_path = os.path.join(directory, filename)
+            
+            # Check if it's a file and has allowed extension
+            if os.path.isfile(file_path) and any(filename.lower().endswith(ext) for ext in allowed_extensions):
+                try:
+                    # Get file stats
+                    stats = os.stat(file_path)
+                    
+                    # Verify it's actually an image using OpenCV
+                    if is_valid_image(file_path):
+                        images.append({
+                            'name': filename,
+                            'path': file_path,
+                            'size': stats.st_size,
+                            'date': datetime.fromtimestamp(stats.st_mtime).isoformat()
+                        })
+                except Exception as e:
+                    print(f"Error processing file {filename}: {str(e)}")
+                    continue
+
+        # Sort images by date, newest first
+        images.sort(key=lambda x: x['date'], reverse=True)
+        
+        print(f"Found {len(images)} images")
+        return jsonify({
+            'status': 'success',
+            'images': images
+        })
+
+    except Exception as e:
+        print(f"Error listing images: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/delete-image', methods=['POST'])
+def delete_image():
+    try:
+        data = request.get_json()
+        image_path = data.get('path')
+        
+        print(f"Attempting to delete image: {image_path}")
+        
+        if not image_path or not os.path.exists(image_path):
+            print(f"Image not found: {image_path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Verify it's a file and an image using OpenCV
+        if not os.path.isfile(image_path) or not is_valid_image(image_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid image file'
+            }), 400
+
+        # Delete the file
+        os.remove(image_path)
+        
+        print(f"Successfully deleted image: {image_path}")
+        return jsonify({
+            'status': 'success',
+            'message': 'Image deleted successfully'
+        })
+
+    except Exception as e:
+        print(f"Error deleting image: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/thumbnail', methods=['GET'])
+def get_thumbnail():
+    try:
+        image_path = request.args.get('path')
+        if not image_path or not os.path.exists(image_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Image not found'
+            }), 404
+
+        # Send the file directly
+        return send_file(image_path, mimetype='image/jpeg')
+
+    except Exception as e:
+        print(f"Error serving thumbnail: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/watch-folder', methods=['POST'])
+def watch_folder():
+    global observer
+    
+    try:
+        data = request.get_json()
+        folder_path = data.get('path')
+        
+        if not folder_path or not os.path.exists(folder_path):
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid folder path'
+            }), 400
+
+        # Stop existing observer if any
+        if observer:
+            observer.stop()
+            observer.join()
+
+        # Create new observer
+        observer = Observer()
+        handler = ImageFolderHandler()
+        observer.schedule(handler, folder_path, recursive=False)
+        observer.start()
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Folder watch started'
+        })
+
+    except Exception as e:
+        print(f"Error setting up folder watch: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+# Make sure to stop the observer when the server shuts down
+def cleanup():
+    global observer
+    if observer:
+        observer.stop()
+        observer.join()
+
+import atexit
+atexit.register(cleanup)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, threaded=True) 
