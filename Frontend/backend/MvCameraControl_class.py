@@ -5,61 +5,24 @@ import copy
 import ctypes
 import os
 from ctypes import *
-
+import win32api
 from PixelType_header import *
 from CameraParams_const import *
 from CameraParams_header import *
 from MvErrorDefine_const import *
 
-def find_mv_camera_dll():
-    """Find and load MvCameraControl.dll from common installation paths"""
-    dll_name = "MvCameraControl.dll"
-    
-    # Common installation paths to check
-    search_paths = [
-        os.path.dirname(os.path.abspath(__file__)),  # Current directory
-        os.path.join(os.environ.get('ProgramFiles', ''), 'MVS', 'Development', 'Samples', 'Python', 'MvImport'),
-        os.path.join(os.environ.get('ProgramFiles(x86)', ''), 'MVS', 'Development', 'Samples', 'Python', 'MvImport'),
-        os.path.join(os.environ.get('ProgramFiles', ''), 'MVS', 'Development', 'Samples', 'Python'),
-        os.path.join(os.environ.get('ProgramFiles(x86)', ''), 'MVS', 'Development', 'Samples', 'Python'),
-    ]
-    
-    # Check alternative drives (C, D, E, F)
-    for drive in ['C:', 'D:', 'E:', 'F:']:
-        if os.path.exists(drive):
-            alt_paths = [
-                os.path.join(drive, 'Program Files', 'MVS', 'Development', 'Samples', 'Python', 'MvImport'),
-                os.path.join(drive, 'Program Files (x86)', 'MVS', 'Development', 'Samples', 'Python', 'MvImport'),
-                os.path.join(drive, 'Program Files', 'MVS', 'Development', 'Samples', 'Python'),
-                os.path.join(drive, 'Program Files (x86)', 'MVS', 'Development', 'Samples', 'Python'),
-                os.path.join(drive, 'MVS', 'Development', 'Samples', 'Python', 'MvImport'),
-                os.path.join(drive, 'MVS', 'Development', 'Samples', 'Python'),
-            ]
-            search_paths.extend(alt_paths)
-    
-    # Also check user's home directory
-    home_paths = [
-        os.path.join(os.path.expanduser('~'), 'MVS', 'Development', 'Samples', 'Python', 'MvImport'),
-        os.path.join(os.path.expanduser('~'), 'MVS', 'Development', 'Samples', 'Python'),
-    ]
-    search_paths.extend(home_paths)
-    
-    for path in search_paths:
-        dll_path = os.path.join(path, dll_name)
-        if os.path.exists(dll_path):
-            return dll_path
-            
-    # If not found in common paths, try system PATH
-    return dll_name
+dllname = "MvCameraControl.dll"
+try:
+    if "winmode" in ctypes.WinDLL.__init__.__code__.co_varnames:
+        MvCamCtrldll = WinDLL(dllname,winmode = 0)
+    else:
+        MvCamCtrldll = WinDLL(dllname)
 
-# Load the DLL
-dll_path = find_mv_camera_dll()
-if "winmode" in ctypes.WinDLL.__init__.__code__.co_varnames:
-    MvCamCtrldll = WinDLL(dll_path, winmode=0)
-else:
-    MvCamCtrldll = WinDLL(dll_path)
+    dll_handle = MvCamCtrldll._handle
+    loaded_dll_path = win32api.GetModuleFileName(dll_handle)
 
-
+except Exception as e:
+    print("Err loading")
 # 用于回调函数传入相机实例
 class _MV_PY_OBJECT_(Structure):
     pass

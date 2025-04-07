@@ -22,7 +22,6 @@ from PIL import Image
 import numpy as np
 import json
 from porosity_analysis import analyze_porosity, prepare_image
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'MvImport')))
 from MvCameraControl_class import *
 from ctypes import c_float, byref
 import atexit
