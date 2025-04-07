@@ -49,9 +49,9 @@
     ],
     "extraResources": [
       {
-        "from": "backend",
-        "to": "backend",
-        "filter": ["**/*"]
+        "from": "backend/dist",
+        "to": "backend/dist",
+        "filter": ["camera_server.exe"]
       }
     ],
     "directories": {
