@@ -57,6 +57,19 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
   const [isMoving, setIsMoving] = useState(false);
   const [moveOffset, setMoveOffset] = useState({ x: 0, y: 0 });
 
+  // Add history state for undo/redo
+  const [history, setHistory] = useState([shapes]); // Initialize with current shapes
+  const [historyIndex, setHistoryIndex] = useState(0);
+
+  // Initialize history when shapes prop changes
+  useEffect(() => {
+    // Only initialize if history is empty or if shapes have changed externally
+    if (history.length === 0 || !history.some(state => state === shapes)) {
+      setHistory([shapes]);
+      setHistoryIndex(0);
+    }
+  }, [shapes]);
+
   // Add pointCounter state near the top with other state declarations
   const [pointCounter, setPointCounter] = useState(1);
 
@@ -171,7 +184,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
 
   // Update isPointInShape function with better detection
   const isPointInShape = (point, shape) => {
-    const threshold = 8; // Increased threshold for better detection
+    const threshold = 10; // Increased threshold for better detection
 
     switch (shape.type) {
       case 'point': {
@@ -348,7 +361,17 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     pointer: {
       mouseDown: () => {},
       mouseMove: () => {},
-      mouseUp: () => {},
+      mouseUp: () => {
+        if (selectedShape) {
+          const newShapes = shapes.map(shape => {
+            if (shape.id === selectedShape.id) {
+              return selectedShape;
+            }
+            return shape;
+          });
+          updateShapesWithHistory(newShapes);
+        }
+      },
     },
     point: {
       mouseDown: (coords) => {
@@ -363,9 +386,11 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
             fontColor: currentFontColor 
           }
         };
-        onShapesUpdate([...shapes, newPoint]);
+        updateShapesWithHistory([...shapes, newPoint]);
         setPointCounter(prev => prev + 1);
       },
+      mouseMove: () => {},
+      mouseUp: () => {},
     },
     line: {
       mouseDown: (coords) => {
@@ -408,7 +433,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
               fontColor: currentFontColor 
             }
           };
-          onShapesUpdate([...shapes, newLine]);
+          updateShapesWithHistory([...shapes, newLine]);
           setIsDrawing(false);
         }
       },
@@ -454,7 +479,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
               fontColor: currentFontColor 
             }
           };
-          onShapesUpdate([...shapes, newRect]);
+          updateShapesWithHistory([...shapes, newRect]);
           setIsDrawing(false);
         }
       },
@@ -463,7 +488,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseDown: (coords) => {
         if (!isDrawing) {
           setCurvePoints([coords]);
-        setIsDrawing(true);
+          setIsDrawing(true);
         } else if (curvePoints.length < 3) {
           setCurvePoints([...curvePoints, coords]);
         }
@@ -471,7 +496,6 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseMove: (coords) => {
         if (isDrawing) {
           if (curvePoints.length === 1) {
-            // First point is set, show preview line to current point
             setCurrentShape({
               type: 'circle',
               points: [curvePoints[0], coords],
@@ -482,7 +506,6 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
               }
             });
           } else if (curvePoints.length === 2) {
-            // Second point is set, show preview line to current point
             setCurrentShape({
               type: 'circle',
               points: [...curvePoints, coords],
@@ -507,7 +530,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
               fontColor: currentFontColor 
             }
           };
-          onShapesUpdate([...shapes, newCircle]);
+          updateShapesWithHistory([...shapes, newCircle]);
           setIsDrawing(false);
           setCurvePoints([]);
           setCurrentShape(null);
@@ -548,7 +571,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
               fontColor: currentFontColor 
             }
           };
-          onShapesUpdate([...shapes, newCurve]);
+          updateShapesWithHistory([...shapes, newCurve]);
           setIsDrawing(false);
           setCurvePoints([]);
         }
@@ -580,12 +603,16 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       doubleClick: () => {
         if (isDrawing && curvePoints.length > 2) {
           const points = [...curvePoints, curvePoints[0]]; // Close the curve
-          const newClosedCurve = { type: 'closedCurve', points, style: { 
-            color: currentColor, 
-            thickness: currentThickness,
-            fontColor: currentFontColor 
-          } };
-          onShapesUpdate([...shapes, newClosedCurve]);
+          const newClosedCurve = { 
+            type: 'closedCurve', 
+            points, 
+            style: { 
+              color: currentColor, 
+              thickness: currentThickness,
+              fontColor: currentFontColor 
+            }
+          };
+          updateShapesWithHistory([...shapes, newClosedCurve]);
           setIsDrawing(false);
           setCurvePoints([]);
         }
@@ -599,15 +626,115 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseMove: (coords) => {
         if (isDrawing) {
           requestAnimationFrame(() => {
-          eraseAtPoint(coords);
+            eraseAtPoint(coords);
           });
         }
       },
       mouseUp: () => {
         setIsDrawing(false);
-        // Force final redraw
-        if (ctxRef.current) {
-          drawShapes(ctxRef.current);
+      }
+    },
+    move: {
+      mouseDown: (coords) => {
+        const clickedShape = shapes.findLast(shape => isPointInShape(coords, shape));
+        if (clickedShape) {
+          setSelectedShape(clickedShape);
+          setIsMoving(true);
+          setMoveOffset({
+            x: coords.x,
+            y: coords.y
+          });
+        }
+      },
+      mouseMove: (coords) => {
+        if (isMoving && selectedShape) {
+          const dx = coords.x - moveOffset.x;
+          const dy = coords.y - moveOffset.y;
+
+          let updatedShape = { ...selectedShape };
+          
+          switch (selectedShape.type) {
+            case 'point':
+              updatedShape = {
+                ...selectedShape,
+                x: selectedShape.x + dx,
+                y: selectedShape.y + dy
+              };
+              break;
+            case 'line':
+            case 'arrow':
+              updatedShape = {
+                ...selectedShape,
+                start: {
+                  x: selectedShape.start.x + dx,
+                  y: selectedShape.start.y + dy
+                },
+                end: {
+                  x: selectedShape.end.x + dx,
+                  y: selectedShape.end.y + dy
+                }
+              };
+              break;
+            case 'rectangle':
+              updatedShape = {
+                ...selectedShape,
+                start: {
+                  x: selectedShape.start.x + dx,
+                  y: selectedShape.start.y + dy
+                },
+                end: {
+                  x: selectedShape.end.x + dx,
+                  y: selectedShape.end.y + dy
+                }
+              };
+              break;
+            case 'circle':
+            case 'arc':
+            case 'curve':
+            case 'closedCurve':
+              if (selectedShape.points) {
+                updatedShape = {
+                  ...selectedShape,
+                  points: selectedShape.points.map(point => ({
+                    x: point.x + dx,
+                    y: point.y + dy
+                  }))
+                };
+              }
+              break;
+            case 'text':
+              updatedShape = {
+                ...selectedShape,
+                position: {
+                  x: selectedShape.position.x + dx,
+                  y: selectedShape.position.y + dy
+                }
+              };
+              break;
+          }
+
+          setSelectedShape(updatedShape);
+          setMoveOffset({
+            x: coords.x,
+            y: coords.y
+          });
+
+          const newShapes = shapes.map(shape =>
+            shape === selectedShape ? updatedShape : shape
+          );
+
+          onShapesUpdate(newShapes);
+        }
+      },
+      mouseUp: () => {
+        if (isMoving && selectedShape) {
+          const newShapes = shapes.map(shape =>
+            shape === selectedShape ? selectedShape : shape
+          );
+          updateShapesWithHistory(newShapes);
+          setIsMoving(false);
+          setSelectedShape(null);
+          setMoveOffset({ x: 0, y: 0 });
         }
       }
     },
@@ -615,7 +742,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseDown: (coords) => {
         if (!isDrawing) {
           setCurvePoints([coords]);
-        setIsDrawing(true);
+          setIsDrawing(true);
         } else if (curvePoints.length < 3) {
           setCurvePoints([...curvePoints, coords]);
         }
@@ -623,9 +750,8 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseMove: (coords) => {
         if (isDrawing) {
           if (curvePoints.length === 1) {
-            // First point is set, show preview line to current point
-        setCurrentShape({ 
-          type: 'arc', 
+            setCurrentShape({ 
+              type: 'arc', 
               points: [curvePoints[0], coords],
               style: { 
                 color: currentColor, 
@@ -634,7 +760,6 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
               }
             });
           } else if (curvePoints.length === 2) {
-            // Second point is set, show preview line to current point
             setCurrentShape({
               type: 'arc',
               points: [...curvePoints, coords],
@@ -659,7 +784,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
               fontColor: currentFontColor 
             }
           };
-          onShapesUpdate([...shapes, newArc]);
+          updateShapesWithHistory([...shapes, newArc]);
           setIsDrawing(false);
           setCurvePoints([]);
           setCurrentShape(null);
@@ -707,7 +832,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
               fontColor: currentFontColor 
             }
           };
-          onShapesUpdate([...shapes, newArrow]);
+          updateShapesWithHistory([...shapes, newArrow]);
           setIsDrawing(false);
         }
       }
@@ -724,125 +849,6 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         }, 100);
       }
     },
-    move: {
-      mouseDown: (coords) => {
-        // Find the shape that was clicked
-        const clickedShape = shapes.findLast(shape => isPointInShape(coords, shape));
-        if (clickedShape) {
-          setSelectedShape(clickedShape);
-          setIsMoving(true);
-          
-          // Simplified offset calculation
-          setMoveOffset({
-            x: coords.x,
-            y: coords.y
-          });
-          return;
-        }
-      },
-      mouseMove: (newCoords) => {
-        if (!ctxRef.current) return;
-        
-        // Handle shape movement
-        if (isMoving && selectedShape) {
-          const dx = newCoords.x - moveOffset.x;
-          const dy = newCoords.y - moveOffset.y;
-
-          const newShapes = shapes.map(shape => {
-            if (shape === selectedShape) {
-              switch (shape.type) {
-                case 'point':
-                  return {
-                    ...shape,
-                    x: shape.x + dx,
-                    y: shape.y + dy
-                  };
-                case 'line':
-                case 'arrow':
-                  return {
-                    ...shape,
-                    start: {
-                      x: shape.start.x + dx,
-                      y: shape.start.y + dy
-                    },
-                    end: {
-                      x: shape.end.x + dx,
-                      y: shape.end.y + dy
-                    }
-                  };
-                case 'rectangle':
-                  return {
-                    ...shape,
-                    start: {
-                      x: shape.start.x + dx,
-                      y: shape.start.y + dy
-                    },
-                    end: {
-                      x: shape.end.x + dx,
-                      y: shape.end.y + dy
-                    }
-                  };
-                case 'circle':
-                case 'arc':
-                case 'curve':
-                case 'closedCurve':
-                  if (shape.points) {
-                    return {
-                      ...shape,
-                      points: shape.points.map(point => ({
-                        x: point.x + dx,
-                        y: point.y + dy
-                      }))
-                    };
-                  }
-                  return shape;
-                case 'text':
-                  return {
-                    ...shape,
-                    position: {
-                      x: shape.position.x + dx,
-                      y: shape.position.y + dy
-                    }
-                  };
-                default:
-                  return shape;
-              }
-            }
-            return shape;
-          });
-
-          // Update the offset for the next move
-          setMoveOffset({
-            x: newCoords.x,
-            y: newCoords.y
-          });
-
-          onShapesUpdate(newShapes);
-          
-          // Force immediate redraw
-          requestAnimationFrame(() => {
-            if (ctxRef.current) {
-              drawShapes(ctxRef.current);
-            }
-          });
-          return;
-        }
-
-        // If we're not moving a shape, proceed with normal tool operations
-        if (!selectedTool || !isDrawing) return;
-        
-        const tool = drawTools[selectedTool];
-        if (tool?.mouseMove) {
-          tool.mouseMove(newCoords);
-          drawShapes(ctxRef.current);
-        }
-      },
-      mouseUp: () => {
-        setIsMoving(false);
-        setSelectedShape(null);
-        setMoveOffset({ x: 0, y: 0 });
-      }
-    },
     angle: {
       mouseDown: (coords) => {
         if (!isDrawing) {
@@ -855,7 +861,6 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseMove: (coords) => {
         if (isDrawing) {
           if (curvePoints.length === 1) {
-            // First point is set, show preview line to current point
             setCurrentShape({
               type: 'angle',
               points: [curvePoints[0], coords],
@@ -866,7 +871,6 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
               }
             });
           } else if (curvePoints.length === 2) {
-            // Second point is set, show preview line to current point
             setCurrentShape({
               type: 'angle',
               points: [...curvePoints, coords],
@@ -891,7 +895,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
               fontColor: currentFontColor 
             }
           };
-          onShapesUpdate([...shapes, newAngle]);
+          updateShapesWithHistory([...shapes, newAngle]);
           setIsDrawing(false);
           setCurvePoints([]);
           setCurrentShape(null);
@@ -1083,7 +1087,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     });
 
     if (newShapes.length !== shapes.length) {
-      onShapesUpdate(newShapes);
+      updateShapesWithHistory(newShapes);
       requestAnimationFrame(() => {
         if (ctxRef.current) {
           drawShapes(ctxRef.current);
@@ -1171,75 +1175,13 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       const dy = coords.y - moveOffset.y;
 
       const newShapes = shapes.map(shape => {
-        if (shape === selectedShape) {
-          switch (shape.type) {
-            case 'point':
-              return {
-                ...shape,
-                x: shape.x + dx,
-                y: shape.y + dy
-              };
-            case 'line':
-            case 'arrow':
-              return {
-                ...shape,
-                start: {
-                  x: shape.start.x + dx,
-                  y: shape.start.y + dy
-                },
-                end: {
-                  x: shape.end.x + dx,
-                  y: shape.end.y + dy
-                }
-              };
-            case 'rectangle':
-              return {
-                ...shape,
-                start: {
-                  x: shape.start.x + dx,
-                  y: shape.start.y + dy
-                },
-                end: {
-                  x: shape.end.x + dx,
-                  y: shape.end.y + dy
-                }
-              };
-            case 'circle':
-            case 'arc':
-            case 'curve':
-            case 'closedCurve':
-              if (shape.points) {
-                return {
-                  ...shape,
-                  points: shape.points.map(point => ({
-                    x: point.x + dx,
-                    y: point.y + dy
-                  }))
-                };
-              }
-              return shape;
-            case 'text':
-              return {
-                ...shape,
-                position: {
-                  x: shape.position.x + dx,
-                  y: shape.position.y + dy
-                }
-              };
-            default:
-              return shape;
-          }
+        if (shape.id === selectedShape.id) {
+          return selectedShape;
         }
         return shape;
       });
 
-      // Update the offset for the next move
-      setMoveOffset({
-        x: coords.x,
-        y: coords.y
-      });
-
-      onShapesUpdate(newShapes);
+      updateShapesWithHistory(newShapes);
       
       // Force immediate redraw
       requestAnimationFrame(() => {
@@ -1828,6 +1770,92 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     }
   }, [isRecording]);
 
+  // Update resolution handling
+  useEffect(() => {
+    const handleSettingsChange = () => {
+      const savedSettings = localStorage.getItem('cameraSettings');
+      if (savedSettings) {
+        try {
+          const settings = JSON.parse(savedSettings);
+          const [width, height] = settings.resolution.split('x').map(Number);
+          
+          // Update resolution state
+          setResolution({ width, height });
+          
+          // Update canvas dimensions
+          if (canvasRef.current) {
+            canvasRef.current.width = width;
+            canvasRef.current.height = height;
+            
+            // Redraw shapes with new dimensions
+            if (ctxRef.current) {
+              drawShapes(ctxRef.current);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading camera settings:', error);
+        }
+      }
+    };
+
+    // Initial load
+    handleSettingsChange();
+    
+    // Listen for storage events
+    window.addEventListener('storage', handleSettingsChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleSettingsChange);
+    };
+  }, []);
+
+  // Update canvas context when resolution changes
+  useEffect(() => {
+    if (canvasRef.current) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      ctxRef.current = ctx;
+      
+      // Set canvas size
+      canvas.width = resolution.width;
+      canvas.height = resolution.height;
+      
+      // Set up initial context styles
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 2;
+      ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
+      ctx.font = '14px Arial';
+      ctx.textBaseline = 'top';
+      
+      // Redraw shapes
+      drawShapes(ctx);
+    }
+  }, [resolution]);
+
+  // Update image loading to use resolution
+  useEffect(() => {
+    if (imagePath && imagePath !== prevImagePathRef.current) {
+      prevImagePathRef.current = imagePath;
+      
+      const formattedPath = imagePath.replace(/\\/g, '/');
+      fetch(`http://localhost:5000/api/get-image?path=${encodeURIComponent(formattedPath)}`)
+        .then(response => {
+          if (!response.ok) throw new Error('Failed to fetch image');
+          return response.blob();
+        })
+        .then(blob => {
+          if (imageUrl) URL.revokeObjectURL(imageUrl);
+          const newUrl = URL.createObjectURL(blob);
+          setImageUrl(newUrl);
+          if (onImageLoad) onImageLoad(newUrl);
+        })
+        .catch(error => {
+          console.error('Error loading image:', error);
+          setImageUrl(null);
+        });
+    }
+  }, [imagePath, resolution]);
+
   // Add effect to watch for camera settings changes
   useEffect(() => {
     const handleSettingsChange = () => {
@@ -1876,34 +1904,6 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     // Always return 1 to maintain original size
     return 1;
   };
-
-  // Update image loading to use resolution
-  useEffect(() => {
-    if (imagePath && imagePath !== prevImagePathRef.current) {
-      prevImagePathRef.current = imagePath;
-      
-      const formattedPath = imagePath.replace(/\\/g, '/');
-      fetch(`http://localhost:5000/api/get-image?path=${encodeURIComponent(formattedPath)}`)
-        .then(response => {
-          if (!response.ok) throw new Error('Failed to fetch image');
-          return response.blob();
-        })
-        .then(blob => {
-          if (imageUrl) URL.revokeObjectURL(imageUrl);
-          const newUrl = URL.createObjectURL(blob);
-          
-          const newScale = calculateOptimalScale(resolution.width, resolution.height);
-          setScale(newScale);
-          
-          setImageUrl(newUrl);
-          if (onImageLoad) onImageLoad(newUrl);
-        })
-        .catch(error => {
-          console.error('Error loading image:', error);
-          setImageUrl(null);
-        });
-    }
-  }, [imagePath, resolution]);
 
   // Add helper text overlay
   const renderHelperText = () => {
@@ -2041,7 +2041,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
           fontColor: currentFontColor 
         }
       };
-      onShapesUpdate([...shapes, newText]);
+      updateShapesWithHistory([...shapes, newText]);
       setTextInput('');
       setShowTextInput(false);
       setTextPosition(null);
@@ -2060,16 +2060,86 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
     setSelectedShape(shape);
   };
 
+  // Add function to update shapes with history tracking
+  const updateShapesWithHistory = (newShapes) => {
+    // Remove any future states if we're not at the latest state
+    const newHistory = history.slice(0, historyIndex + 1);
+    // Add the new state
+    newHistory.push(newShapes);
+    // Update history and move to latest state
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+    // Update shapes through the original callback
+    onShapesUpdate(newShapes);
+  };
+
+  // Add undo function
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      onShapesUpdate(history[newIndex]);
+    }
+  };
+
+  // Add redo function
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      onShapesUpdate(history[newIndex]);
+    }
+  };
+
+  // Add keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            handleRedo();
+          } else {
+            handleUndo();
+          }
+        } else if (e.key === 'y') {
+          e.preventDefault();
+          handleRedo();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [historyIndex, history]);
+
+  // Add undo/redo buttons to the UI
   return (
     <div 
+      className="relative w-full h-full"
       ref={containerRef}
-      className="flex-1 overflow-auto relative ml-[180px]"
-      style={{
-        height: 'calc(100vh - 88px)',
-        paddingTop: '20px'
-      }}
       onWheel={handleWheel}
     >
+      {/* Add undo/redo buttons */}
+      <div className="absolute top-2 right-2 flex gap-2 z-50">
+        <button
+          className={`p-2 rounded ${historyIndex > 0 ? 'bg-blue-500 hover:bg-blue-600' : 'bg-gray-400'} text-white`}
+          onClick={handleUndo}
+          disabled={historyIndex === 0}
+          title="Undo (Ctrl+Z)"
+        >
+          Undo
+        </button>
+        <button
+          className={`p-2 rounded ${historyIndex < history.length - 1 ? 'bg-blue-500 hover:bg-blue-600' : 'bg-gray-400'} text-white`}
+          onClick={handleRedo}
+          disabled={historyIndex === history.length - 1}
+          title="Redo (Ctrl+Y or Ctrl+Shift+Z)"
+        >
+          Redo
+        </button>
+      </div>
+
       <ShapeTracker
         shapes={shapes}
         selectedShape={selectedShape}
@@ -2078,23 +2148,12 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         currentColor={currentColor}
         currentFontColor={currentFontColor}
         onFontColorChange={onFontColorChange}
-        onShapesUpdate={onShapesUpdate}
+        onShapesUpdate={updateShapesWithHistory}
       />
-      
-      {renderHelperText()}
-      
-      {/* Add calibration scale display */}
-      {calibrationScale && (
-        <div className="absolute top-14 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-75 text-white px-4 py-1 rounded-full text-sm">
-          {calibrationScale}
-        </div>
-      )}
       
       <div 
         className="relative"
         style={{
-          transform: `scale(${zoom})`,
-          transformOrigin: 'top left',
           width: `${resolution.width}px`,
           height: `${resolution.height}px`,
           margin: '0 auto'
@@ -2134,8 +2193,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
             style={{
               width: `${resolution.width}px`,
               height: `${resolution.height}px`,
-              objectFit: 'contain',
-              opacity: 1 // Make it slightly transparent
+              objectFit: 'contain'
             }}
           />
         )}
@@ -2144,17 +2202,14 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         <canvas
           ref={canvasRef}
           className="absolute top-0 left-0"
+          style={{
+            width: `${resolution.width}px`,
+            height: `${resolution.height}px`
+          }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onDoubleClick={handleDoubleClick}
-          style={{
-            cursor: selectedTool === 'eraser' ? 'none' : 
-                   isMoving ? 'grabbing' : 'default',
-            width: `${resolution.width}px`,
-            height: `${resolution.height}px`,
-            zIndex: 10
-          }}
         />
       </div>
 
@@ -2163,12 +2218,12 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         <div 
           className="absolute"
           style={{
-            left: textPosition.x * zoom,
-            top: textPosition.y * zoom,
+            left: `${textPosition.x}px`,
+            top: `${textPosition.y}px`,
             transform: 'translate(-50%, -50%)'
           }}
         >
-          <form onSubmit={handleTextSubmit} className="flex items-center gap-2">
+          <form onSubmit={handleTextSubmit} className="flex items-center gap-2 bg-white rounded shadow-lg p-2">
             <input
               ref={textInputRef}
               type="text"

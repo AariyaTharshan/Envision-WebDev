@@ -418,11 +418,6 @@ const Toolbar = ({
           </div>
         )}
       </div>
-
-      {/* Quick Help */}
-      <div className="px-4 py-1 bg-blue-50 text-xs text-blue-700 border-t border-blue-100">
-        <span className="font-medium">Tip:</span> Select a tool to start. Press ESC to cancel current action.
-      </div>
     </div>
   );
 };
