@@ -76,6 +76,8 @@ const Toolbar = ({
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showFontColorPicker, setShowFontColorPicker] = useState(false);
   const [showThicknessPicker, setShowThicknessPicker] = useState(false);
+  const [customColor, setCustomColor] = useState(currentColor);
+  const [customFontColor, setCustomFontColor] = useState(currentFontColor);
   
   // Predefined colors for quick selection
   const predefinedColors = [
@@ -155,6 +157,38 @@ const Toolbar = ({
     return () => window.removeEventListener('storage', loadCalibration);
   }, []);
 
+  // Add color picker handlers
+  const handleColorChange = (color) => {
+    setCustomColor(color.hex);
+    onColorChange(color.hex);
+  };
+
+  const handleFontColorChange = (color) => {
+    setCustomFontColor(color.hex);
+    onFontColorChange(color.hex);
+  };
+
+  // Add click outside handler for color pickers
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const colorPicker = document.getElementById('color-picker');
+      const fontColorPicker = document.getElementById('font-color-picker');
+      
+      if (colorPicker && !colorPicker.contains(event.target)) {
+        setShowColorPicker(false);
+      }
+      
+      if (fontColorPicker && !fontColorPicker.contains(event.target)) {
+        setShowFontColorPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   return (
     <div className="bg-white border-b shadow-sm h-full">
       <div className="flex items-center h-full px-2">
@@ -209,11 +243,7 @@ const Toolbar = ({
               {/* Shape Color Picker */}
               <div className="relative">
                 <button
-                  onClick={() => {
-                    setShowColorPicker(!showColorPicker);
-                    setShowFontColorPicker(false);
-                    setShowThicknessPicker(false);
-                  }}
+                  onClick={() => setShowColorPicker(!showColorPicker)}
                   className="flex items-center space-x-2 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors"
                 >
                   <div 
@@ -225,7 +255,10 @@ const Toolbar = ({
                 
                 {/* Shape Color Picker Dropdown */}
                 {showColorPicker && (
-                  <div className="absolute top-full left-0 mt-1 p-3 bg-white rounded-lg shadow-lg border z-50 w-64">
+                  <div 
+                    id="color-picker"
+                    className="absolute top-full left-0 mt-1 p-3 bg-white rounded-lg shadow-lg border z-50 w-64"
+                  >
                     <div className="mb-3">
                       <h3 className="text-sm font-medium text-gray-700 mb-2">Quick Colors</h3>
                       <div className="grid grid-cols-6 gap-2">
@@ -234,7 +267,7 @@ const Toolbar = ({
                             key={color}
                             onClick={() => {
                               onColorChange(color);
-                              setShowColorPicker(false);
+                              setCustomColor(color);
                             }}
                             className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110
                               ${currentColor === color ? 'border-blue-500' : 'border-gray-300'}`}
@@ -249,14 +282,14 @@ const Toolbar = ({
                       <div className="flex items-center space-x-2">
                         <input
                           type="color"
-                          value={currentColor}
-                          onChange={(e) => onColorChange(e.target.value)}
+                          value={customColor}
+                          onChange={(e) => handleColorChange({ hex: e.target.value })}
                           className="w-full h-8 cursor-pointer rounded"
                         />
                         <input
                           type="text"
-                          value={currentColor}
-                          onChange={(e) => onColorChange(e.target.value)}
+                          value={customColor}
+                          onChange={(e) => handleColorChange({ hex: e.target.value })}
                           className="w-24 px-2 py-1 text-sm border rounded"
                         />
                         <button
@@ -274,11 +307,7 @@ const Toolbar = ({
               {/* Font Color Picker */}
               <div className="relative">
                 <button
-                  onClick={() => {
-                    setShowFontColorPicker(!showFontColorPicker);
-                    setShowColorPicker(false);
-                    setShowThicknessPicker(false);
-                  }}
+                  onClick={() => setShowFontColorPicker(!showFontColorPicker)}
                   className="flex items-center space-x-2 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors"
                 >
                   <div 
@@ -290,7 +319,10 @@ const Toolbar = ({
                 
                 {/* Font Color Picker Dropdown */}
                 {showFontColorPicker && (
-                  <div className="absolute top-full left-0 mt-1 p-3 bg-white rounded-lg shadow-lg border z-50 w-64">
+                  <div 
+                    id="font-color-picker"
+                    className="absolute top-full left-0 mt-1 p-3 bg-white rounded-lg shadow-lg border z-50 w-64"
+                  >
                     <div className="mb-3">
                       <h3 className="text-sm font-medium text-gray-700 mb-2">Quick Colors</h3>
                       <div className="grid grid-cols-6 gap-2">
@@ -299,7 +331,7 @@ const Toolbar = ({
                             key={color}
                             onClick={() => {
                               onFontColorChange(color);
-                              setShowFontColorPicker(false);
+                              setCustomFontColor(color);
                             }}
                             className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110
                               ${currentFontColor === color ? 'border-blue-500' : 'border-gray-300'}`}
@@ -314,14 +346,14 @@ const Toolbar = ({
                       <div className="flex items-center space-x-2">
                         <input
                           type="color"
-                          value={currentFontColor}
-                          onChange={(e) => onFontColorChange(e.target.value)}
+                          value={customFontColor}
+                          onChange={(e) => handleFontColorChange({ hex: e.target.value })}
                           className="w-full h-8 cursor-pointer rounded"
                         />
                         <input
                           type="text"
-                          value={currentFontColor}
-                          onChange={(e) => onFontColorChange(e.target.value)}
+                          value={customFontColor}
+                          onChange={(e) => handleFontColorChange({ hex: e.target.value })}
                           className="w-24 px-2 py-1 text-sm border rounded"
                         />
                         <button
