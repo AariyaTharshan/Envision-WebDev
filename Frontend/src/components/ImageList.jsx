@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FaTrash, FaChevronUp } from 'react-icons/fa';
+import { FaChevronUp } from 'react-icons/fa';
 
-const ImageList = ({ currentPath, onSelectImage, onDeleteImage }) => {
+const ImageList = ({ currentPath, onSelectImage }) => {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -111,31 +111,6 @@ const ImageList = ({ currentPath, onSelectImage, onDeleteImage }) => {
     }
   };
 
-  const handleDeleteClick = async (image, e) => {
-    e.stopPropagation();
-    if (window.confirm(`Are you sure you want to delete ${image.name}?`)) {
-      try {
-        const response = await fetch('http://localhost:5000/api/delete-image', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ path: image.path })
-        });
-
-        const data = await response.json();
-        if (data.status === 'success') {
-          loadImages();
-          if (onDeleteImage) {
-            onDeleteImage(image.path);
-          }
-        }
-      } catch (error) {
-        console.error('Error deleting image:', error);
-      }
-    }
-  };
-
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -214,14 +189,6 @@ const ImageList = ({ currentPath, onSelectImage, onDeleteImage }) => {
                           className="w-full h-full object-cover rounded"
                           loading="lazy"
                         />
-                        <button
-                          onClick={(e) => handleDeleteClick(image, e)}
-                          className="absolute top-1 right-1 p-1 bg-white bg-opacity-75 text-gray-600 
-                            hover:text-red-500 rounded-full hover:bg-red-50"
-                          title="Delete image"
-                        >
-                          <FaTrash className="w-3 h-3" />
-                        </button>
                       </div>
                       <p className="text-xs text-gray-900 break-words w-full text-center px-1">
                         {getFileNameWithoutExtension(image.name)}

@@ -46,19 +46,24 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath, onFolderChange 
     }
   };
 
-  const handleSnap = async () => {
+  const handleSnapshot = async () => {
     try {
+      // First stop the camera
       await fetch('http://localhost:5000/api/stop-camera', {
         method: 'POST'
       });
       setIsRecording(false);
 
+      // Then take the snapshot
       const response = await fetch('http://localhost:5000/api/snapshot', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ savePath: location })
+        body: JSON.stringify({
+          savePath: location,
+          magnification: magnification
+        })
       });
 
       const data = await response.json();
@@ -195,7 +200,7 @@ const ControlBox = ({ isRecording, setIsRecording, setImagePath, onFolderChange 
 
         {/* Snap Button */}
         <button
-          onClick={handleSnap}
+          onClick={handleSnapshot}
           className="w-12 h-12 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center
             hover:bg-gray-200 transition-all hover:scale-105 active:scale-95"
           title="Take Snapshot"

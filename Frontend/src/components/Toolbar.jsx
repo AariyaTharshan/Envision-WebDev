@@ -420,7 +420,7 @@ const Toolbar = ({
                     </div>
                   </div>
                 )}
-          </div>
+              </div>
 
               {/* Clear Button */}
               <button
@@ -438,9 +438,9 @@ const Toolbar = ({
         {calibrationInfo && (
           <div className="flex items-center text-xs text-gray-600">
             <span className="bg-blue-50 px-2 py-1 rounded-full border border-blue-100">
-              {calibrationInfo.magnification} • {calibrationInfo.calibrationFactor.toFixed(4)} px/μm
+              {calibrationInfo.magnification} • 1px = {(1/calibrationInfo.calibrationFactor).toFixed(4)} μm
             </span>
-      </div>
+          </div>
         )}
 
         {/* Existing measurement display */}

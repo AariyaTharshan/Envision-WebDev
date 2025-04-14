@@ -632,13 +632,13 @@ const CameraCalibrate = ({ imagePath }) => {
           </p>
       </div>
 
-        {/* Action Buttons - Redesigned */}
+        {/* Action Buttons - Redesigned with industry standard colors */}
         <div className="flex items-center gap-3">
           <button
             onClick={handleMeasurementSubmit}
             disabled={!calibrationLine.start || !measurementValue || !canDrawLine}
-            className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
-              bg-blue-500 text-white hover:bg-blue-600 
+            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md
+              bg-gray-800 text-white hover:bg-gray-900 
               disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
           >
             <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -651,33 +651,33 @@ const CameraCalibrate = ({ imagePath }) => {
             <button
               onClick={saveImage}
               disabled={!image}
-              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
-                bg-green-500 text-white hover:bg-green-600 
-                disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
+              className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md
+                bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300
+                disabled:bg-gray-50 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed transition-all duration-200"
             >
               <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                   d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
               </svg>
-              Save
+              Save Image
             </button>
             <button
               onClick={handleSaveCalibration}
               disabled={!realScale.x}
-              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
-                bg-purple-500 text-white hover:bg-purple-600 
-                disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200"
+              className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md
+                bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300
+                disabled:bg-gray-50 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed transition-all duration-200"
             >
               <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                   d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
-              Save Cal.
+              Save Calibration
             </button>
             <button
               onClick={resetCalibration}
-              className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md
-                text-red-600 bg-red-50 hover:bg-red-100 transition-all duration-200"
+              className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md
+                text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 transition-all duration-200"
             >
               <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
@@ -689,8 +689,8 @@ const CameraCalibrate = ({ imagePath }) => {
         </div>
       </div>
 
-      {/* Main Content Area - Enhanced */}
-      <div className="flex-1 flex gap-4 min-h-0">
+      {/* Main Content Area - Enhanced with better spacing */}
+      <div className="flex-1 flex gap-6 min-h-0 mt-6">
         {/* Left Panel - Controls */}
         <div className="w-72 flex flex-col gap-3">
           {/* Calibration Type Selection - Enhanced */}
@@ -860,9 +860,9 @@ const CameraCalibrate = ({ imagePath }) => {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-blue-800">Scale Factor:</span>
                   <span className="text-sm font-medium text-blue-900">
-                    {realScale.x.toFixed(4)} px/{unit}
-            </span>
-          </div>
+                    1px = {(1/realScale.x).toFixed(4)} {unit}
+                  </span>
+                </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-blue-800">Resolution:</span>
                   <span className="text-sm font-medium text-blue-900">

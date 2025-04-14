@@ -57,12 +57,6 @@ const App = () => {
     setImagePath(imagePath);
   };
 
-  const handleImageDelete = (imagePath) => {
-    if (imagePath === imagePath) {
-      setImagePath(null);
-    }
-  };
-
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <div className="h-10 z-50 relative">
@@ -116,7 +110,6 @@ const App = () => {
         <ImageList
           currentPath={currentFolderPath}
           onSelectImage={handleImageSelect}
-          onDeleteImage={handleImageDelete}
         />
       </div>
     </div>

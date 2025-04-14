@@ -486,12 +486,22 @@ def take_snapshot():
     try:
         data = request.get_json()
         save_path = data.get('savePath') if data else None
+        magnification = data.get('magnification', '100x')  # Get magnification from request
         
         filepath = webcam.take_snapshot(save_path)
         if filepath:
+            # Modify the filename to include magnification
+            directory = os.path.dirname(filepath)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            new_filename = f"microscope_{magnification}_{timestamp}.jpg"
+            new_filepath = os.path.join(directory, new_filename)
+            
+            # Rename the file
+            os.rename(filepath, new_filepath)
+            
             return jsonify({
                 'status': 'success',
-                'filepath': filepath
+                'filepath': new_filepath
             })
         return jsonify({
             'status': 'error',
