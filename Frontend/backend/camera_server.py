@@ -1,6 +1,8 @@
 import os
 import sys
 import logging
+import time
+from datetime import datetime
 
 os.makedirs("logs", exist_ok=True)
 logging.basicConfig(
@@ -14,10 +16,8 @@ sys.stderr = open("logs/stderr.log", "w")
 from flask import Flask, Response, jsonify, request, send_file
 from flask_cors import CORS
 import cv2
-import time
 import threading
 from pathlib import Path
-from datetime import *
 from PIL import Image
 import numpy as np
 import json
@@ -41,13 +41,14 @@ class WebcamManager:
         self.frame = None
         self.thread = None
         self.last_frame = None
-        self.user_save_path = None  # Add user-defined save path
+        self.user_save_path = None
         self.default_save_path = 'C:\\Users\\Public\\MicroScope_Images'
-        self.temp_dir = None  # Will be set when save path is set
+        self.temp_dir = None
         self.current_camera_type = None
-        self.hikrobot_camera = None  # For HIKROBOT camera instance
+        self.hikrobot_camera = None
         self.current_resolution = None
-        self.current_zoom = 1.0  # Add default zoom level
+        self.current_zoom = 1.0
+        self.frame_lock = threading.Lock()
         
         # Initialize with default path
         self.set_save_path(self.default_save_path)
@@ -189,63 +190,32 @@ class WebcamManager:
             return False
 
     def capture_frames(self):
+        """Continuously capture frames from the camera"""
         while self.is_recording:
             try:
                 if self.current_camera_type == 'HIKERBOT':
-                    stOutFrame = MV_FRAME_OUT()
-                    ret = self.camera.MV_CC_GetImageBuffer(stOutFrame, 1000)
-                    if ret == 0:
-                        # Get original dimensions
-                        original_width = stOutFrame.stFrameInfo.nWidth
-                        original_height = stOutFrame.stFrameInfo.nHeight
-
-                        # Get current display resolution
-                        display_width, display_height = self.current_resolution if self.current_resolution else (original_width, original_height)
-
-                        pData = (c_ubyte * stOutFrame.stFrameInfo.nFrameLen)()
-                        cdll.msvcrt.memcpy(byref(pData), stOutFrame.pBufAddr, stOutFrame.stFrameInfo.nFrameLen)
-                        data = np.frombuffer(pData, count=int(stOutFrame.stFrameInfo.nFrameLen), dtype=np.uint8)
-                        frame = data.reshape((original_height, original_width, -1))
-                        
-                        # Resize frame to display resolution while maintaining aspect ratio
-                        if self.current_resolution:
-                            aspect_ratio = original_width / original_height
-                            target_aspect = display_width / display_height
-                            
-                            if aspect_ratio > target_aspect:
-                                # Width limited by display width
-                                new_width = display_width
-                                new_height = int(display_width / aspect_ratio)
-                            else:
-                                # Height limited by display height
-                                new_height = display_height
-                                new_width = int(display_height * aspect_ratio)
-                                
-                            frame = cv2.resize(frame, (new_width, new_height))
-                        
-                        # Release buffer
-                        self.camera.MV_CC_FreeImageBuffer(stOutFrame)
-                        
-                        # Convert to JPEG
-                        _, buffer = cv2.imencode('.jpg', frame)
-                        self.frame = buffer.tobytes()
-                        self.last_frame = self.frame
+                    frame = self.get_frame()
+                    if frame is not None:
+                        ret, buffer = cv2.imencode('.jpg', frame)
+                        if ret:
+                            self.frame = buffer.tobytes()
+                            self.last_frame = self.frame
                 else:
-                    # Regular webcam capture
                     if self.camera is None or not self.camera.isOpened():
                         break
 
                     success, frame = self.camera.read()
                     if success:
                         frame = cv2.flip(frame, 1)
-                        _, buffer = cv2.imencode('.jpg', frame)
-                        self.frame = buffer.tobytes()
-                        self.last_frame = self.frame
+                        ret, buffer = cv2.imencode('.jpg', frame)
+                        if ret:
+                            self.frame = buffer.tobytes()
+                            self.last_frame = self.frame
 
-                time.sleep(0.033)
+                time.sleep(0.033)  # ~30 FPS
             except Exception as e:
                 print(f"Error capturing frame: {str(e)}")
-                break
+                time.sleep(0.1)
 
         self.is_recording = False
 
@@ -381,6 +351,60 @@ class WebcamManager:
             print(f"Error getting zoom: {str(e)}")
             return None
 
+    def get_frame(self):
+        """Get the current frame from the camera"""
+        with self.frame_lock:
+            if self.current_camera_type == 'HIKERBOT':
+                if not self.hikrobot_camera:
+                    return None
+                    
+                stOutFrame = MV_FRAME_OUT()
+                ret = self.hikrobot_camera.MV_CC_GetImageBuffer(stOutFrame, 1000)
+                if ret == 0:
+                    # Get original dimensions
+                    original_width = stOutFrame.stFrameInfo.nWidth
+                    original_height = stOutFrame.stFrameInfo.nHeight
+
+                    # Get current display resolution
+                    display_width, display_height = self.current_resolution if self.current_resolution else (original_width, original_height)
+
+                    pData = (c_ubyte * stOutFrame.stFrameInfo.nFrameLen)()
+                    cdll.msvcrt.memcpy(byref(pData), stOutFrame.pBufAddr, stOutFrame.stFrameInfo.nFrameLen)
+                    data = np.frombuffer(pData, count=int(stOutFrame.stFrameInfo.nFrameLen), dtype=np.uint8)
+                    frame = data.reshape((original_height, original_width, -1))
+                    
+                    # Resize frame to display resolution while maintaining aspect ratio
+                    if self.current_resolution:
+                        aspect_ratio = original_width / original_height
+                        target_aspect = display_width / display_height
+                        
+                        if aspect_ratio > target_aspect:
+                            # Width limited by display width
+                            new_width = display_width
+                            new_height = int(display_width / aspect_ratio)
+                        else:
+                            # Height limited by display height
+                            new_height = display_height
+                            new_width = int(display_height * aspect_ratio)
+                            
+                        frame = cv2.resize(frame, (new_width, new_height))
+                    
+                    # Release buffer
+                    self.hikrobot_camera.MV_CC_FreeImageBuffer(stOutFrame)
+                    return frame
+                    
+            else:
+                # Regular webcam capture
+                if self.camera is None or not self.camera.isOpened():
+                    return None
+
+                success, frame = self.camera.read()
+                if success:
+                    frame = cv2.flip(frame, 1)
+                    return frame
+                    
+            return None
+
 webcam = WebcamManager()
 
 @app.route('/api/start-camera', methods=['POST'])
@@ -406,15 +430,56 @@ def stop_camera():
 def video_feed():
     def generate():
         while True:
-            if not webcam.is_recording:
-                break
-            if webcam.frame is not None:
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + webcam.frame + b'\r\n')
-            time.sleep(0.033)
-    
+            try:
+                if not webcam.is_recording:
+                    time.sleep(0.1)
+                    continue
+                    
+                if webcam.current_camera_type == 'HIKERBOT':
+                    frame = webcam.get_frame()
+                    if frame is None:
+                        time.sleep(0.033)
+                        continue
+                        
+                    # Convert frame to JPEG
+                    ret, buffer = cv2.imencode('.jpg', frame)
+                    if not ret:
+                        continue
+                        
+                    frame_bytes = buffer.tobytes()
+                    webcam.frame = frame_bytes  # Update the current frame
+                    webcam.last_frame = frame_bytes  # Update last frame
+                    
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                else:
+                    # Regular webcam
+                    success, frame = webcam.camera.read() if webcam.camera else (False, None)
+                    if not success:
+                        time.sleep(0.033)
+                        continue
+                        
+                    frame = cv2.flip(frame, 1)
+                    ret, buffer = cv2.imencode('.jpg', frame)
+                    if not ret:
+                        continue
+                        
+                    frame_bytes = buffer.tobytes()
+                    webcam.frame = frame_bytes  # Update the current frame
+                    webcam.last_frame = frame_bytes  # Update last frame
+                    
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                
+                time.sleep(0.033)  # ~30 FPS
+                
+            except Exception as e:
+                print(f"Error in video feed: {str(e)}")
+                time.sleep(0.1)
+                continue
+
     return Response(generate(),
-                   mimetype='multipart/x-mixed-replace; boundary=frame')
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/api/snapshot', methods=['POST'])
 def take_snapshot():

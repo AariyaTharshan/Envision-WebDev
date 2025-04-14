@@ -488,7 +488,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseDown: (coords) => {
         if (!isDrawing) {
           setCurvePoints([coords]);
-          setIsDrawing(true);
+        setIsDrawing(true);
         } else if (curvePoints.length < 3) {
           setCurvePoints([...curvePoints, coords]);
         }
@@ -626,7 +626,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseMove: (coords) => {
         if (isDrawing) {
           requestAnimationFrame(() => {
-            eraseAtPoint(coords);
+          eraseAtPoint(coords);
           });
         }
       },
@@ -742,7 +742,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseDown: (coords) => {
         if (!isDrawing) {
           setCurvePoints([coords]);
-          setIsDrawing(true);
+        setIsDrawing(true);
         } else if (curvePoints.length < 3) {
           setCurvePoints([...curvePoints, coords]);
         }
@@ -750,8 +750,8 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
       mouseMove: (coords) => {
         if (isDrawing) {
           if (curvePoints.length === 1) {
-            setCurrentShape({ 
-              type: 'arc', 
+        setCurrentShape({ 
+          type: 'arc', 
               points: [curvePoints[0], coords],
               style: { 
                 color: currentColor, 
@@ -1797,13 +1797,13 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         }
       }
     };
-
+    
     // Initial load
     handleSettingsChange();
     
     // Listen for storage events
     window.addEventListener('storage', handleSettingsChange);
-    
+
     return () => {
       window.removeEventListener('storage', handleSettingsChange);
     };
@@ -2138,7 +2138,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
         >
           Redo
         </button>
-      </div>
+        </div>
 
       <ShapeTracker
         shapes={shapes}
@@ -2240,7 +2240,7 @@ const Display = ({ isRecording, imagePath, onImageLoad, selectedTool, shapes, on
               Add
             </button>
           </form>
-        </div>
+      </div>
       )}
     </div>
   );

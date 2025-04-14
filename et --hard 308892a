@@ -1,0 +1,50 @@
+[33m2931d9d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtemp[m[33m, [m[1;31morigin/temp[m[33m)[m calibrate7
+[33ma0a0f5f[m calibrate6
+[33m7c113e9[m calibrate5
+[33m344ef22[m calibrate4
+[33ma4e788c[m calibrate3
+[33m2d3b309[m calibrate2
+[33m1755ede[m calibrate1
+[33mdb6957d[m calibrate
+[33mc847cff[m calibrate
+[33mce53553[m New Changes
+[33m308892a[m Fixed Display
+[33maa07a26[m[33m ([m[1;31morigin/ATG[m[33m, [m[1;32mATG[m[33m)[m Removed unwanted packages
+[33m5d3c5a6[m Electron fix
+[33m03c56de[m LOGO and Loading Screen
+[33m8bd5892[m Loading Page
+[33mb452111[m 2d Measurement
+[33m69e7999[m Major FIXES
+[33mae0ce9a[m imagelist
+[33m6789997[m 2d
+[33mf67b2b1[m Changed Calibration
+[33m6422a61[m Change Save Functionality
+[33mf73a71b[m Changed Calibrate image
+[33ma0883b8[m Changed Resolution
+[33m6e15253[m Safety COMMIT
+[33med991a6[m Added Image Process
+[33ma52c947[m Process Added
+[33ma08878f[m Electron Resolution
+[33m2864d0f[m Resolution Settings added
+[33m176ec2f[m camera connected
+[33mb064860[m Added Function for Content in Navbar
+[33m89dab8f[m Current Working Version
+[33m4871d75[m Fixed Local electron run
+[33m35a3e1b[m Merge branch 'ATG' of https://github.com/AariyaTharshan/Envision-WebDev into ATG
+[33m2e20261[m Added Some Popover
+[33m86a98ef[m Delete React-Components/src/components directory
+[33m930b560[m New version
+[33mf4f31f9[m New version
+[33mfca8804[m update
+[33mea493b5[m update
+[33m104100b[m update
+[33madf37c2[m Added Camera
+[33mecfc6c3[m Added Camera
+[33m20325c0[m update
+[33m4fb62de[m popup
+[33md888060[m Added Electron
+[33m6eb168c[m Modified Control Panel ICON
+[33m84ad46b[m small fixes
+[33ma2300c5[m small fixes
+[33m7520f6e[m Landing Page
+[33maaecd90[m Initial commit

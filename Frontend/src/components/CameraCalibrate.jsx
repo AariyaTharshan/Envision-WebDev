@@ -630,8 +630,8 @@ const CameraCalibrate = ({ imagePath }) => {
               `Using ${selectedExistingCalibration.magnification} calibration (${selectedExistingCalibration.calibrationFactor.toFixed(4)} px/μm)` : 
               'Calibrate your microscope camera for precise measurements'}
           </p>
-        </div>
-        
+      </div>
+
         {/* Action Buttons - Redesigned */}
         <div className="flex items-center gap-3">
           <button
@@ -783,14 +783,14 @@ const CameraCalibrate = ({ imagePath }) => {
           )}
 
           {/* New Calibration Controls - Enhanced */}
-          {calibrationType === 'new' && (
+      {calibrationType === 'new' && (
             <div className="space-y-3">
-              {/* Magnification Selection */}
+          {/* Magnification Selection */}
               <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
                 <h3 className="text-sm font-semibold text-gray-700 mb-2">Magnification</h3>
-                <select
-                  value={magnification}
-                  onChange={(e) => setMagnification(e.target.value)}
+            <select
+              value={magnification}
+              onChange={(e) => setMagnification(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md
                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
@@ -799,8 +799,8 @@ const CameraCalibrate = ({ imagePath }) => {
                   <option value="200x">200x Magnification</option>
                   <option value="500x">500x Magnification</option>
                   <option value="1000x">1000x Magnification</option>
-                </select>
-              </div>
+            </select>
+          </div>
 
               {/* Unit Selection */}
               <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
@@ -825,17 +825,17 @@ const CameraCalibrate = ({ imagePath }) => {
                     </button>
                   ))}
                 </div>
-              </div>
+        </div>
 
               {/* Measurement Input */}
               <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
                 <h3 className="text-sm font-semibold text-gray-700 mb-2">Measurement Value</h3>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <input
-                      type="number"
-                      value={measurementValue}
-                      onChange={(e) => setMeasurementValue(e.target.value)}
+            <input
+              type="number"
+              value={measurementValue}
+              onChange={(e) => setMeasurementValue(e.target.value)}
                       placeholder={`Enter value`}
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md
                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -861,8 +861,8 @@ const CameraCalibrate = ({ imagePath }) => {
                   <span className="text-sm text-blue-800">Scale Factor:</span>
                   <span className="text-sm font-medium text-blue-900">
                     {realScale.x.toFixed(4)} px/{unit}
-                  </span>
-                </div>
+            </span>
+          </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-blue-800">Resolution:</span>
                   <span className="text-sm font-medium text-blue-900">
@@ -875,9 +875,9 @@ const CameraCalibrate = ({ imagePath }) => {
                     ✓ Calibrated
                   </span>
                 </div>
-              </div>
-            </div>
-          )}
+        </div>
+      </div>
+      )}
         </div>
 
         {/* Right Panel - Canvas and Results */}
@@ -904,65 +904,65 @@ const CameraCalibrate = ({ imagePath }) => {
                   {canDrawLine 
                     ? (calibrationLine.start ? '✏️ Enter Measurement' : '✏️ Draw Line')
                     : '✓ Calibrated'}
-                </span>
+                  </span>
               </div>
             )}
-          </div>
+      </div>
 
           {/* Results Panel - Enhanced */}
           {(lines.length > 0 || image) && (
             <div className="h-36 flex gap-3">
               {/* Measurements */}
-              {lines.length > 0 && (
+        {lines.length > 0 && (
                 <div className="flex-1 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
                   <h3 className="text-sm font-semibold text-gray-700 mb-2">Measurements</h3>
                   <div className="space-y-2">
-                    {lines.map((line, index) => (
+              {lines.map((line, index) => (
                       <div key={index} className="flex justify-between items-center py-1 border-b border-gray-100">
                         <span className="text-sm text-gray-600">Measurement {index + 1}:</span>
                         <div className="text-right">
                           <span className="text-sm font-medium text-gray-900">
-                            {line.measurement.toFixed(2)} {line.unit}
+                    {line.measurement.toFixed(2)} {line.unit}
                           </span>
                           <span className="ml-2 text-xs text-gray-500">
-                            ({Math.round(line.pixelDistance)} px)
-                          </span>
+                      ({Math.round(line.pixelDistance)} px)
+                    </span>
                         </div>
                       </div>
-                    ))}
+              ))}
                   </div>
-                </div>
-              )}
+          </div>
+        )}
 
               {/* Image Details */}
-              {image && (
+        {image && (
                 <div className="flex-1 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
                   <h3 className="text-sm font-semibold text-gray-700 mb-2">Image Details</h3>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center py-1 border-b border-gray-100">
                       <span className="text-sm text-gray-600">Resolution:</span>
                       <span className="text-sm font-medium text-gray-900">
-                        {originalDimensions.width} × {originalDimensions.height} px
-                      </span>
-                    </div>
-                    {realScale.x && (
-                      <>
+                  {originalDimensions.width} × {originalDimensions.height} px
+                </span>
+              </div>
+              {realScale.x && (
+                <>
                         <div className="flex justify-between">
                           <span>Width:</span>
                           <span>{(originalDimensions.width / realScale.x).toFixed(2)} {unit}</span>
-                        </div>
+                  </div>
                         <div className="flex justify-between">
                           <span>Height:</span>
                           <span>{(originalDimensions.height / realScale.x).toFixed(2)} {unit}</span>
-                        </div>
-                      </>
-                    )}
                   </div>
-                </div>
+                </>
               )}
             </div>
+          </div>
+        )}
+      </div>
           )}
-        </div>
+      </div>
       </div>
     </div>
   );
